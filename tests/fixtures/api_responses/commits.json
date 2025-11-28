@@ -1,0 +1,127 @@
+[
+  {
+    "sha": "abc123def456789012345678901234567890abcd",
+    "commit": {
+      "author": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "date": "2025-01-15T10:30:00Z"
+      },
+      "committer": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "date": "2025-01-15T10:30:00Z"
+      },
+      "message": "feat: add new feature\n\nThis is a detailed description of the feature.",
+      "tree": {
+        "sha": "tree123"
+      }
+    },
+    "author": {
+      "login": "johndoe",
+      "type": "User"
+    },
+    "committer": {
+      "login": "johndoe",
+      "type": "User"
+    },
+    "html_url": "https://github.com/test/repo/commit/abc123def456789012345678901234567890abcd",
+    "stats": {
+      "additions": 50,
+      "deletions": 10,
+      "total": 60
+    },
+    "files": [
+      {
+        "filename": "src/main.py",
+        "additions": 30,
+        "deletions": 5,
+        "changes": 35,
+        "status": "modified"
+      },
+      {
+        "filename": "tests/test_main.py",
+        "additions": 20,
+        "deletions": 5,
+        "changes": 25,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "def456789012345678901234567890abcdef1234",
+    "commit": {
+      "author": {
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "date": "2025-01-14T15:45:00Z"
+      },
+      "committer": {
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "date": "2025-01-14T15:45:00Z"
+      },
+      "message": "Merge pull request #42 from feature/login",
+      "tree": {
+        "sha": "tree456"
+      }
+    },
+    "author": {
+      "login": "janesmith",
+      "type": "User"
+    },
+    "committer": {
+      "login": "janesmith",
+      "type": "User"
+    },
+    "html_url": "https://github.com/test/repo/commit/def456789012345678901234567890abcdef1234",
+    "stats": {
+      "additions": 100,
+      "deletions": 20,
+      "total": 120
+    },
+    "files": []
+  },
+  {
+    "sha": "789012345678901234567890abcdef1234567890",
+    "commit": {
+      "author": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "date": "2025-01-13T09:00:00Z"
+      },
+      "committer": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "date": "2025-01-13T09:00:00Z"
+      },
+      "message": "Revert \"feat: add broken feature\"",
+      "tree": {
+        "sha": "tree789"
+      }
+    },
+    "author": {
+      "login": "johndoe",
+      "type": "User"
+    },
+    "committer": {
+      "login": "johndoe",
+      "type": "User"
+    },
+    "html_url": "https://github.com/test/repo/commit/789012345678901234567890abcdef1234567890",
+    "stats": {
+      "additions": 5,
+      "deletions": 50,
+      "total": 55
+    },
+    "files": [
+      {
+        "filename": "src/broken.py",
+        "additions": 5,
+        "deletions": 50,
+        "changes": 55,
+        "status": "modified"
+      }
+    ]
+  }
+]
