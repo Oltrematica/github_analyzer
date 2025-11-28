@@ -1,5 +1,9 @@
 # GitHub Analyzer
 
+[![Tests](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A powerful Python command-line tool for analyzing GitHub repositories and extracting comprehensive metrics about commits, pull requests, issues, and contributor activity. Generate detailed CSV reports for productivity analysis and code quality assessment.
 
 ![GitHub Analyzer Banner](screens/screen1.png)
