@@ -434,8 +434,12 @@ class TestGitHubClientUrllibErrors:
 
     @patch("src.github_analyzer.api.client.urlopen")
     def test_handles_timeout_error(self, mock_urlopen, mock_config):
-        """Test handles TimeoutError."""
-        mock_urlopen.side_effect = TimeoutError("Request timed out")
+        """Test handles TimeoutError wrapped in URLError."""
+        import socket
+        from urllib.error import URLError
+
+        # urllib wraps socket.timeout in URLError
+        mock_urlopen.side_effect = URLError(socket.timeout("Request timed out"))
 
         client = GitHubClient(mock_config)
         client._session = None

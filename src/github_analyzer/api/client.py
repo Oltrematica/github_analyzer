@@ -218,14 +218,15 @@ class GitHubClient:
                 status_code=e.code,
             ) from e
         except URLError as e:
+            # URLError wraps socket.timeout for timeouts
+            if isinstance(e.reason, TimeoutError):
+                raise APIError(
+                    "Request timed out",
+                    details=f"Timeout after {self._config.timeout}s",
+                ) from e
             raise APIError(
                 "Network error",
                 details=str(e.reason),
-            ) from e
-        except TimeoutError as e:
-            raise APIError(
-                "Request timed out",
-                details=f"Timeout after {self._config.timeout}s",
             ) from e
         except json.JSONDecodeError as e:
             raise APIError(
