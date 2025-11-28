@@ -15,7 +15,19 @@ tests/
 
 ## Commands
 
-cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] pytest [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] ruff check .
+```bash
+# Run tests
+pytest tests/ -v
+
+# Run tests with coverage
+pytest --cov=src/github_analyzer --cov-report=term-missing
+
+# Run linter
+ruff check src/github_analyzer/
+
+# Run the analyzer
+python github_analyzer.py --days 7
+```
 
 ## Code Style
 
