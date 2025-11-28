@@ -77,7 +77,7 @@ class PullRequestAnalyzer:
                 if number:
                     detail_endpoint = f"/repos/{repo.full_name}/pulls/{number}"
                     detail = self._client.get(detail_endpoint)
-                    if detail:
+                    if detail and isinstance(detail, dict):
                         raw = detail
 
             pr = PullRequest.from_api_response(raw, repo.full_name)

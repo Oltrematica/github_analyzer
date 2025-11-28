@@ -59,7 +59,7 @@ class CommitAnalyzer:
             if sha:
                 detail_endpoint = f"/repos/{repo.full_name}/commits/{sha}"
                 detail = self._client.get(detail_endpoint)
-                if detail:
+                if detail and isinstance(detail, dict):
                     raw = detail
 
             commit = Commit.from_api_response(raw, repo.full_name)
