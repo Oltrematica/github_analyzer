@@ -40,10 +40,10 @@ class TestInteractiveProjectSelection:
             JiraProject(key="OPS", name="Operations", description="Ops team project"),
         ]
 
-    def test_uses_all_projects_when_file_missing(
+    def test_uses_all_projects_when_file_missing_non_interactive(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:
-        """All projects used when jira_projects.txt is missing."""
+        """All projects used when jira_projects.txt is missing (non-interactive mode)."""
         from src.github_analyzer.api import jira_client as jira_module
         from src.github_analyzer.cli.main import select_jira_projects
 
@@ -58,6 +58,7 @@ class TestInteractiveProjectSelection:
                 result = select_jira_projects(
                     str(projects_file),
                     jira_config=JiraConfig.from_env(),
+                    interactive=False,  # Non-interactive mode for testing
                 )
 
         # Should return all available projects
@@ -66,10 +67,10 @@ class TestInteractiveProjectSelection:
         assert "DEV" in result
         assert "OPS" in result
 
-    def test_uses_all_projects_when_file_empty(
+    def test_uses_all_projects_when_file_empty_non_interactive(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:
-        """All projects used when jira_projects.txt is empty."""
+        """All projects used when jira_projects.txt is empty (non-interactive mode)."""
         from src.github_analyzer.api import jira_client as jira_module
         from src.github_analyzer.cli.main import select_jira_projects
 
@@ -84,6 +85,7 @@ class TestInteractiveProjectSelection:
                 result = select_jira_projects(
                     str(projects_file),
                     jira_config=JiraConfig.from_env(),
+                    interactive=False,  # Non-interactive mode for testing
                 )
 
         # Should return all projects
@@ -91,6 +93,85 @@ class TestInteractiveProjectSelection:
         assert "PROJ" in result
         assert "DEV" in result
         assert "OPS" in result
+
+    def test_interactive_prompt_select_all(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: user selects 'A' for all projects (FR-009a)."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+        assert not projects_file.exists()
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                with mock.patch("builtins.input", return_value="A"):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        # Should return all projects
+        assert len(result) == 3
+        assert "PROJ" in result
+        assert "DEV" in result
+        assert "OPS" in result
+
+    def test_interactive_prompt_specify_manually(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: user specifies projects manually (FR-009a option b)."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+        assert not projects_file.exists()
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User selects 'S' then enters "PROJ, DEV"
+                with mock.patch("builtins.input", side_effect=["S", "PROJ, DEV"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        # Should return only specified projects
+        assert result == ["PROJ", "DEV"]
+
+    def test_interactive_prompt_quit(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: user quits extraction."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+        assert not projects_file.exists()
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                with mock.patch("builtins.input", return_value="Q"):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        # Should return empty list (skipped)
+        assert result == []
 
     def test_existing_file_skips_prompt(
         self, tmp_path: Path, jira_env: dict

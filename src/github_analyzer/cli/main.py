@@ -464,22 +464,25 @@ def parse_project_selection(selection: str, max_projects: int) -> list[int]:
 def select_jira_projects(
     projects_file: str,
     jira_config: JiraConfig | None,
+    interactive: bool = True,
 ) -> list[str]:
-    """Select Jira projects from file or use all available.
+    """Select Jira projects from file or interactively (FR-009, FR-009a).
 
     Args:
         projects_file: Path to jira_projects.txt file.
         jira_config: Jira configuration (required to fetch available projects).
+        interactive: If True, prompt user when file is missing/empty.
+                    If False, use all available projects automatically.
 
     Returns:
         List of project keys to analyze.
     """
-    # Try loading from file first
+    # Try loading from file first (FR-009)
     file_projects = load_jira_projects(projects_file)
     if file_projects:
         return file_projects
 
-    # No file or empty - use all available projects
+    # No file or empty - need to prompt or use all (FR-009a)
     if not jira_config:
         return []
 
@@ -493,11 +496,80 @@ def select_jira_projects(
         print("No projects found in Jira instance.")
         return []
 
-    # Use all available projects
     all_keys = [p.key for p in available_projects]
-    print(f"\nNo {projects_file} found. Using all {len(all_keys)} available Jira projects.")
 
-    return all_keys
+    # Non-interactive mode: use all projects automatically
+    if not interactive:
+        print(f"\nNo {projects_file} found. Using all {len(all_keys)} available Jira projects.")
+        return all_keys
+
+    # Interactive mode: prompt user per FR-009a
+    print(f"\n{projects_file} not found or empty.")
+    print(f"Found {len(available_projects)} accessible Jira projects:\n")
+    print(format_project_list(available_projects))
+    print("\nOptions:")
+    print("  [A] Analyze ALL accessible projects")
+    print("  [S] Specify project keys manually (comma-separated)")
+    print("  [L] Select from list by number (e.g., 1,3,5 or 1-3)")
+    print("  [Q] Quit/Skip Jira extraction")
+
+    while True:
+        try:
+            choice = input("\nYour choice [A/S/L/Q]: ").strip().upper()
+        except (EOFError, KeyboardInterrupt):
+            print("\nJira extraction skipped.")
+            return []
+
+        if choice == "A":
+            print(f"Using all {len(all_keys)} projects.")
+            return all_keys
+
+        elif choice == "S":
+            try:
+                manual_input = input("Enter project keys (comma-separated): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nJira extraction skipped.")
+                return []
+
+            if not manual_input:
+                print("No projects entered.")
+                continue
+
+            # Parse and validate manual input
+            manual_keys = [k.strip().upper() for k in manual_input.split(",") if k.strip()]
+            valid_keys = [k for k in manual_keys if k in all_keys]
+            invalid_keys = [k for k in manual_keys if k not in all_keys]
+
+            if invalid_keys:
+                print(f"Warning: Invalid project keys ignored: {', '.join(invalid_keys)}")
+
+            if valid_keys:
+                print(f"Selected {len(valid_keys)} projects: {', '.join(valid_keys)}")
+                return valid_keys
+            else:
+                print("No valid project keys entered. Try again.")
+
+        elif choice == "L":
+            try:
+                selection_input = input("Enter selection (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nJira extraction skipped.")
+                return []
+
+            indices = parse_project_selection(selection_input, len(available_projects))
+            if indices:
+                selected_keys = [available_projects[i].key for i in indices]
+                print(f"Selected {len(selected_keys)} projects: {', '.join(selected_keys)}")
+                return selected_keys
+            else:
+                print("Invalid selection. Try again.")
+
+        elif choice == "Q":
+            print("Jira extraction skipped.")
+            return []
+
+        else:
+            print("Invalid choice. Please enter A, S, L, or Q.")
 
 
 def main() -> int:
