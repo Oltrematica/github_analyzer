@@ -349,105 +349,31 @@ export GITHUB_TOKEN=ghp_your_token_here
 
 ## Contributing
 
-Contributions are welcome! Please follow these guidelines:
+Contributions are welcome! Please read our **[Contributing Guide](CONTRIBUTING.md)** for detailed information on:
 
-### Getting Started
+- Development setup and workflow
+- Code style and testing requirements
+- Commit message format (Conventional Commits)
+- Pull request guidelines
 
-1. **Fork the repository** on GitHub
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/github_analyzer.git
-   cd github_analyzer
-   ```
-3. **Create a feature branch**:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-4. **Install development dependencies**:
-   ```bash
-   pip install -r requirements-dev.txt
-   ```
+**Quick start:**
 
-### Development Workflow
-
-1. **Make your changes** following the code style guidelines
-2. **Run the linter** before committing:
-   ```bash
-   ruff check src/github_analyzer/
-   ```
-3. **Run tests** and ensure they pass:
-   ```bash
-   pytest tests/ -v
-   ```
-4. **Check coverage** - we aim for **≥95% test coverage**:
-   ```bash
-   pytest --cov=src/github_analyzer --cov-report=term-missing
-   ```
-
-### Code Style
-
-- **Python 3.9+** compatibility required
-- Use **type hints** for all function signatures
-- Follow **PEP 8** conventions (enforced by ruff)
-- Keep functions focused and small
-- Add docstrings for public functions and classes
-
-### Commit Message Format
-
-We use **Conventional Commits** format:
-
-```
-<type>(<scope>): <description>
-
-[optional body]
-
-[optional footer]
-```
-
-**Types:**
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, no logic change)
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `build`: Build system or dependencies
-- `ci`: CI/CD configuration
-- `chore`: Maintenance tasks
-
-**Examples:**
 ```bash
-feat(api): add retry logic for rate-limited requests
-fix(cli): handle empty repository list gracefully
-docs(readme): add troubleshooting section
-test(analyzers): add unit tests for quality metrics
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/github_analyzer.git
+cd github_analyzer
+
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/ -v
+
+# Run linter
+ruff check src/github_analyzer/
 ```
 
-### Pull Request Guidelines
-
-1. **Update tests** for any new functionality
-2. **Maintain or improve coverage** (minimum 95%)
-3. **Update documentation** if adding new features
-4. **Keep PRs focused** - one feature/fix per PR
-5. **Reference issues** if applicable: `Fixes #123`
-
-### Testing Requirements
-
-- All new code must have corresponding unit tests
-- Tests should be in `tests/unit/` following the source structure
-- Use `pytest` fixtures for test data
-- Mock external dependencies (GitHub API, file system)
-
-### Documentation
-
-- Update README.md for user-facing changes
-- Add docstrings to new public APIs
-- Keep examples up to date
-
-### Questions?
-
-Open an issue for discussion before starting major changes.
+We aim for **≥95% test coverage**. Open an issue for discussion before starting major changes.
 
 ## License
 
