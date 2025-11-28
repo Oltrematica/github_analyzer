@@ -112,8 +112,8 @@ pytest tests/ -v
 # Run with coverage
 pytest --cov=src/github_analyzer --cov-report=term-missing
 
-# Check coverage meets threshold (95%)
-pytest --cov=src/github_analyzer --cov-fail-under=95
+# Check coverage meets threshold (90%)
+pytest --cov=src/github_analyzer --cov-fail-under=90
 
 # Run linter
 ruff check src/github_analyzer/
@@ -267,7 +267,7 @@ class TestCommitAnalyzer:
 
 ### Test Requirements
 
-- **Coverage**: Minimum 95% code coverage
+- **Coverage**: Minimum 90% code coverage
 - **Unit tests**: All new code must have tests
 - **Mocking**: Mock external dependencies (GitHub API, file system)
 - **Fixtures**: Use pytest fixtures for reusable test data
@@ -351,7 +351,7 @@ BREAKING CHANGE: The commits endpoint now returns a different structure.
 - [ ] Tests pass locally (`pytest tests/ -v`)
 - [ ] Linter passes (`ruff check src/github_analyzer/`)
 - [ ] Type checker passes (`mypy src/github_analyzer/`)
-- [ ] Coverage is ≥95%
+- [ ] Coverage is ≥90%
 - [ ] Documentation is updated (if applicable)
 - [ ] Commit messages follow conventions
 

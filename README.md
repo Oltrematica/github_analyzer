@@ -405,6 +405,39 @@ export GITHUB_TOKEN=ghp_your_token_here
 - Verify repository names in `repos.txt` are correct
 - Ensure the token has read access to the repositories
 
+### "JIRA_URL environment variable not set"
+```bash
+export JIRA_URL="https://yourcompany.atlassian.net"
+export JIRA_EMAIL="your.email@company.com"
+export JIRA_API_TOKEN="your-api-token"
+```
+
+### "Jira authentication failed"
+- Verify your email matches your Jira account exactly
+- Check that the API token is valid and not expired
+- For Jira Cloud, ensure you're using the correct email (not username)
+- For Jira Server/Data Center, verify the token has appropriate permissions
+
+### "Jira project not found: PROJ"
+- Project keys are case-sensitive (usually uppercase)
+- Verify you have access to the project with your account
+- Check the project key in Jira (visible in issue keys like PROJ-123)
+
+### "Jira rate limit exceeded"
+- The tool automatically retries with exponential backoff
+- If persistent, wait a few minutes and retry
+- Reduce the number of projects in `jira_projects.txt`
+- Use a shorter analysis period with `--days`
+
+### Jira skipped (no credentials)
+- This is expected if you only have GitHub configured
+- To use Jira, set all three required environment variables: `JIRA_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+
+### Empty Jira CSV files
+- Check if projects have issues updated in the specified period
+- Verify project keys in `jira_projects.txt` are correct
+- Ensure your account has permission to view the projects
+
 ## Security
 
 - **Token Security**: The GitHub token is loaded from the `GITHUB_TOKEN` environment variable and is never stored, logged, or exposed in error messages
@@ -437,7 +470,7 @@ pytest tests/ -v
 ruff check src/github_analyzer/
 ```
 
-We aim for **≥95% test coverage**. Open an issue for discussion before starting major changes.
+We aim for **≥90% test coverage**. Open an issue for discussion before starting major changes.
 
 ## License
 

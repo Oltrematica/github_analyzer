@@ -413,6 +413,149 @@ class TestGitHubClientRequest:
             assert result == {"id": 1}
             mock_urllib.assert_called_once()
 
+    def test_uses_requests_when_session_available(self, mock_config):
+        """Test uses requests session when available."""
+        # Skip if requests is not installed
+        try:
+            import requests  # noqa: F401
+        except ImportError:
+            pytest.skip("requests not installed")
+
+        client = GitHubClient(mock_config)
+
+        # Mock the requests session
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.ok = True
+        mock_response.headers = {"X-RateLimit-Remaining": "4000"}
+        mock_response.json.return_value = {"id": 1}
+        mock_session.get.return_value = mock_response
+        client._session = mock_session
+
+        result, headers = client._request("https://api.github.com/test")
+
+        assert result == {"id": 1}
+        mock_session.get.assert_called_once()
+
+
+# Try to import requests for conditional tests
+try:
+    import requests as _requests_module
+
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+
+@pytest.mark.skipif(not HAS_REQUESTS, reason="requests library not installed")
+class TestGitHubClientRequestWithRequests:
+    """Tests for _request_with_requests method."""
+
+    def test_makes_request_successfully(self, mock_config):
+        """Test makes request with requests library."""
+        client = GitHubClient(mock_config)
+
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.ok = True
+        mock_response.headers = {"X-RateLimit-Remaining": "4000", "X-RateLimit-Reset": "1234567890"}
+        mock_response.json.return_value = {"id": 1}
+        mock_session.get.return_value = mock_response
+        client._session = mock_session
+
+        result, headers = client._request_with_requests("https://api.github.com/test")
+
+        assert result == {"id": 1}
+        assert headers["X-RateLimit-Remaining"] == "4000"
+
+    def test_handles_404_returns_none(self, mock_config):
+        """Test handles 404 by returning None."""
+        client = GitHubClient(mock_config)
+
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.ok = False
+        mock_response.headers = {}
+        mock_session.get.return_value = mock_response
+        client._session = mock_session
+
+        result, headers = client._request_with_requests("https://api.github.com/test")
+
+        assert result is None
+
+    def test_handles_rate_limit_403(self, mock_config):
+        """Test handles rate limit 403."""
+        import requests
+
+        client = GitHubClient(mock_config)
+        client._rate_limit_remaining = 0
+
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 403
+        mock_response.ok = False
+        mock_response.headers = {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1234567890"}
+        mock_session.get.return_value = mock_response
+        client._session = mock_session
+
+        with pytest.raises(RateLimitError) as exc_info:
+            client._request_with_requests("https://api.github.com/test")
+
+        assert exc_info.value.reset_time == 1234567890
+
+    def test_handles_generic_error(self, mock_config):
+        """Test handles generic HTTP error."""
+        import requests
+
+        client = GitHubClient(mock_config)
+
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.ok = False
+        mock_response.headers = {}
+        mock_response.text = "Internal Server Error"
+        mock_session.get.return_value = mock_response
+        client._session = mock_session
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_requests("https://api.github.com/test")
+
+        assert "500" in str(exc_info.value)
+
+    def test_handles_timeout(self, mock_config):
+        """Test handles timeout exception."""
+        import requests
+
+        client = GitHubClient(mock_config)
+
+        mock_session = Mock()
+        mock_session.get.side_effect = requests.exceptions.Timeout("Request timed out")
+        client._session = mock_session
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_requests("https://api.github.com/test")
+
+        assert "timed out" in str(exc_info.value).lower()
+
+    def test_handles_request_exception(self, mock_config):
+        """Test handles RequestException."""
+        import requests
+
+        client = GitHubClient(mock_config)
+
+        mock_session = Mock()
+        mock_session.get.side_effect = requests.exceptions.RequestException("Connection error")
+        client._session = mock_session
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_requests("https://api.github.com/test")
+
+        assert "Network error" in str(exc_info.value)
+
 
 class TestGitHubClientUrllibErrors:
     """Tests for _request_with_urllib error handling."""
