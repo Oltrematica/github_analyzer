@@ -8,15 +8,29 @@ Security Notes:
 - Tokens are NEVER logged, printed, or exposed in error messages
 - Token values are masked in string representations
 - Token is loaded from GITHUB_TOKEN environment variable only
+- Jira credentials are loaded from JIRA_* environment variables
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from src.github_analyzer.core.exceptions import ConfigurationError, ValidationError, mask_token
+
+
+class DataSource(Enum):
+    """Supported data sources for the analyzer.
+
+    Attributes:
+        GITHUB: GitHub repositories and API.
+        JIRA: Jira projects and API.
+    """
+
+    GITHUB = "github"
+    JIRA = "jira"
 
 
 def _get_bool_env(key: str, default: bool) -> bool:
@@ -229,4 +243,157 @@ class AnalyzerConfig:
             "verbose": self.verbose,
             "timeout": self.timeout,
             "max_pages": self.max_pages,
+        }
+
+
+@dataclass
+class JiraConfig:
+    """Configuration for Jira API access.
+
+    All configuration is loaded from environment variables.
+    Token values are NEVER logged, printed, or exposed in error messages.
+
+    Attributes:
+        jira_url: Jira instance URL (e.g., https://company.atlassian.net).
+        jira_email: User email for authentication.
+        jira_api_token: API token (never logged).
+        jira_projects_file: Path to projects list file.
+        api_version: Detected API version ("2" for Server, "3" for Cloud).
+        timeout: HTTP request timeout in seconds.
+
+    Example:
+        >>> config = JiraConfig.from_env()
+        >>> if config:
+        ...     print(config.jira_url)
+    """
+
+    jira_url: str
+    jira_email: str
+    jira_api_token: str
+    jira_projects_file: str = "jira_projects.txt"
+    api_version: str = ""
+    timeout: int = 30
+
+    def __post_init__(self) -> None:
+        """Clean up configuration values after initialization."""
+        # Strip whitespace from values
+        object.__setattr__(self, "jira_url", self.jira_url.strip().rstrip("/"))
+        object.__setattr__(self, "jira_email", self.jira_email.strip())
+        object.__setattr__(self, "jira_api_token", self.jira_api_token.strip())
+
+        # Auto-detect API version based on URL if not set
+        if not self.api_version:
+            if ".atlassian.net" in self.jira_url:
+                object.__setattr__(self, "api_version", "3")
+            else:
+                object.__setattr__(self, "api_version", "2")
+
+    @classmethod
+    def from_env(cls) -> JiraConfig | None:
+        """Load configuration from environment variables.
+
+        Required environment variables:
+            JIRA_URL: Jira instance URL
+            JIRA_EMAIL: User email for authentication
+            JIRA_API_TOKEN: API token
+
+        Optional environment variables:
+            JIRA_PROJECTS_FILE: Path to projects file (default: jira_projects.txt)
+            JIRA_TIMEOUT: Request timeout (default: 30)
+
+        Returns:
+            JiraConfig if all required vars are set, None otherwise.
+            Returns None (not raises) when credentials are incomplete,
+            per FR-004 (graceful skip with info message).
+        """
+        jira_url = os.environ.get("JIRA_URL", "").strip()
+        jira_email = os.environ.get("JIRA_EMAIL", "").strip()
+        jira_api_token = os.environ.get("JIRA_API_TOKEN", "").strip()
+
+        # Return None if any required credential is missing (FR-004)
+        if not jira_url or not jira_email or not jira_api_token:
+            return None
+
+        return cls(
+            jira_url=jira_url,
+            jira_email=jira_email,
+            jira_api_token=jira_api_token,
+            jira_projects_file=os.environ.get("JIRA_PROJECTS_FILE", "jira_projects.txt"),
+            timeout=_get_int_env("JIRA_TIMEOUT", 30),
+        )
+
+    def validate(self) -> None:
+        """Validate all configuration values.
+
+        Validates:
+            - URL format (valid HTTPS URL)
+            - Email format (basic validation)
+            - Token is non-empty (never validate format - varies by instance)
+
+        Raises:
+            ValidationError: If any value is invalid.
+        """
+        from src.github_analyzer.config.validation import validate_jira_url
+
+        # Validate URL format (FR-019)
+        if not validate_jira_url(self.jira_url):
+            raise ValidationError(
+                "Invalid Jira URL format",
+                details="URL must be a valid HTTPS URL (e.g., https://company.atlassian.net)",
+            )
+
+        # Basic email validation
+        if "@" not in self.jira_email or "." not in self.jira_email:
+            raise ValidationError(
+                "Invalid Jira email format",
+                details="Email must be a valid email address",
+            )
+
+        # Token must be non-empty (but don't validate format - varies by instance)
+        if not self.jira_api_token:
+            raise ValidationError(
+                "Jira API token cannot be empty",
+                details="Set JIRA_API_TOKEN environment variable",
+            )
+
+        # Validate timeout
+        if self.timeout <= 0 or self.timeout > 300:
+            raise ValidationError(
+                f"Invalid timeout value: {self.timeout}",
+                details="Timeout must be between 1 and 300 seconds",
+            )
+
+    def __repr__(self) -> str:
+        """Return string representation with masked token."""
+        return (
+            f"JiraConfig("
+            f"jira_url={self.jira_url!r}, "
+            f"jira_email={self.jira_email!r}, "
+            f"jira_api_token={mask_token(self.jira_api_token)!r}, "
+            f"api_version={self.api_version!r})"
+        )
+
+    def __str__(self) -> str:
+        """Return user-friendly string representation."""
+        return (
+            f"Jira Config:\n"
+            f"  URL: {self.jira_url}\n"
+            f"  Email: {self.jira_email}\n"
+            f"  Token: {mask_token(self.jira_api_token)}\n"
+            f"  API Version: {self.api_version}"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert config to dictionary with masked token.
+
+        Returns:
+            Dictionary representation safe for logging.
+        """
+        return {
+            "jira_url": self.jira_url,
+            "jira_email": self.jira_email,
+            "jira_api_token": mask_token(self.jira_api_token),
+            "jira_projects_file": self.jira_projects_file,
+            "api_version": self.api_version,
+            "timeout": self.timeout,
         }

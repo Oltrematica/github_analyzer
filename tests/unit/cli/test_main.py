@@ -1,5 +1,6 @@
 """Tests for CLI main module."""
 
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
@@ -430,8 +431,10 @@ class TestMain:
         mock_config.verbose = True
         mock_config.validate = Mock()
 
+        # Use clear=True to ensure no Jira env vars leak through
         with (
-            patch("sys.argv", ["prog", "--days", "7", "--quiet", "--full"]),
+            patch("sys.argv", ["prog", "--days", "7", "--quiet", "--full", "--sources", "github"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test1234567890123456789012"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
             patch.object(main_module, "load_repositories", return_value=[]),
             patch.object(main_module, "prompt_yes_no", return_value=False),

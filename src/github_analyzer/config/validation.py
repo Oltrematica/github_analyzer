@@ -335,3 +335,190 @@ def load_repositories_from_file(file: TextIO) -> list[Repository]:
             continue
 
     return repositories
+
+
+# Jira validation functions
+
+
+# Jira project key pattern: uppercase letter followed by uppercase letters, digits, or underscores
+# Examples: PROJ, DEV, PROJECT_1, ABC123
+JIRA_PROJECT_KEY_PATTERN = r"^[A-Z][A-Z0-9_]*$"
+
+
+def validate_jira_url(url: str) -> bool:
+    """Validate Jira instance URL format.
+
+    Validates that the URL is a valid HTTPS URL. HTTP is not allowed
+    for security reasons (FR-019).
+
+    Args:
+        url: The Jira URL to validate.
+
+    Returns:
+        True if URL is valid HTTPS URL, False otherwise.
+
+    Examples:
+        >>> validate_jira_url("https://company.atlassian.net")
+        True
+        >>> validate_jira_url("https://jira.company.com")
+        True
+        >>> validate_jira_url("http://jira.company.com")
+        False
+        >>> validate_jira_url("not-a-url")
+        False
+    """
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+
+        # Must be HTTPS (FR-019)
+        if parsed.scheme != "https":
+            return False
+
+        # Must have a valid host
+        if not parsed.netloc:
+            return False
+
+        # Host must have at least one dot (basic domain validation)
+        if "." not in parsed.netloc:
+            return False
+
+        # Check for dangerous characters
+        return not _contains_dangerous_chars(url)
+    except Exception:
+        return False
+
+
+def validate_project_key(key: str) -> bool:
+    """Validate Jira project key format.
+
+    Project keys must start with an uppercase letter and contain only
+    uppercase letters, digits, and underscores (FR-020).
+
+    Args:
+        key: The project key to validate.
+
+    Returns:
+        True if key matches valid format, False otherwise.
+
+    Examples:
+        >>> validate_project_key("PROJ")
+        True
+        >>> validate_project_key("DEV")
+        True
+        >>> validate_project_key("PROJECT_1")
+        True
+        >>> validate_project_key("proj")  # lowercase
+        False
+        >>> validate_project_key("1PROJ")  # starts with digit
+        False
+    """
+    if not key:
+        return False
+
+    return bool(re.match(JIRA_PROJECT_KEY_PATTERN, key))
+
+
+def validate_iso8601_date(date_str: str) -> bool:
+    """Validate ISO 8601 date format.
+
+    Validates that the string is a valid ISO 8601 date (FR-021).
+    Supports both date-only and datetime formats.
+
+    Args:
+        date_str: The date string to validate.
+
+    Returns:
+        True if date is valid ISO 8601 format, False otherwise.
+
+    Examples:
+        >>> validate_iso8601_date("2025-11-28")
+        True
+        >>> validate_iso8601_date("2025-11-28T10:30:00Z")
+        True
+        >>> validate_iso8601_date("2025-11-28T10:30:00+00:00")
+        True
+        >>> validate_iso8601_date("28-11-2025")  # wrong format
+        False
+        >>> validate_iso8601_date("invalid")
+        False
+    """
+    if not date_str:
+        return False
+
+    # ISO 8601 date patterns
+    # Date only: YYYY-MM-DD
+    # Datetime with Z: YYYY-MM-DDTHH:MM:SSZ
+    # Datetime with offset: YYYY-MM-DDTHH:MM:SS+HH:MM
+    patterns = [
+        r"^\d{4}-\d{2}-\d{2}$",  # Date only
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",  # Datetime with Z
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$",  # Datetime with offset
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$",  # Datetime with milliseconds and Z
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2}$",  # With ms and offset
+    ]
+
+    if not any(re.match(pattern, date_str) for pattern in patterns):
+        return False
+
+    # Additional validation: check that date components are valid
+    try:
+        # Extract date part
+        date_part = date_str[:10]
+        year, month, day = map(int, date_part.split("-"))
+
+        # Basic range checks
+        if not (1 <= month <= 12):
+            return False
+        if not (1 <= day <= 31):
+            return False
+
+        return not (year < 1900 or year > 2100)
+    except (ValueError, IndexError):
+        return False
+
+
+def load_jira_projects(filepath: str | Path) -> list[str]:
+    """Load and validate Jira project keys from file.
+
+    File format:
+    - One project key per line
+    - Lines starting with # are comments
+    - Empty lines are ignored
+    - Duplicates are deduplicated
+
+    Args:
+        filepath: Path to jira_projects.txt file.
+
+    Returns:
+        List of validated project keys (deduplicated).
+        Returns empty list if file doesn't exist or is empty.
+
+    Note:
+        Unlike load_repositories(), this does NOT raise ConfigurationError
+        if file is missing, per FR-009a (interactive prompt when missing).
+    """
+    filepath = Path(filepath)
+
+    if not filepath.exists():
+        return []
+
+    projects: list[str] = []
+    seen: set[str] = set()
+
+    with open(filepath, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            # Skip empty lines and comments
+            if not line or line.startswith("#"):
+                continue
+
+            # Validate project key format
+            if validate_project_key(line) and line not in seen:
+                seen.add(line)
+                projects.append(line)
+
+    return projects

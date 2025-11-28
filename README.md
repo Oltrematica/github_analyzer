@@ -1,16 +1,17 @@
-# GitHub Analyzer
+# DevAnalyzer (GitHub Analyzer)
 
 [![Tests](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/Oltrematica/github_analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/Oltrematica/github_analyzer)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful Python command-line tool for analyzing GitHub repositories and extracting comprehensive metrics about commits, pull requests, issues, and contributor activity. Generate detailed CSV reports for productivity analysis and code quality assessment.
+A powerful Python command-line tool for analyzing GitHub repositories and Jira projects, extracting comprehensive metrics about commits, pull requests, issues, and contributor activity. Generate detailed CSV reports for productivity analysis and code quality assessment.
 
 ![GitHub Analyzer Banner](screens/screen1.png)
 
 ## Features
 
+### GitHub Analysis
 - **Commit Analysis** - Track commits with detailed statistics including additions, deletions, merge detection, and revert identification
 - **Pull Request Metrics** - Monitor PR workflow, merge times, review coverage, and approval rates
 - **Issue Tracking** - Analyze issue resolution times, categorization (bugs vs enhancements), and closure rates
@@ -18,8 +19,19 @@ A powerful Python command-line tool for analyzing GitHub repositories and extrac
 - **Multi-Repository Support** - Analyze multiple repositories in a single run with aggregated statistics
 - **Quality Metrics** - Assess code quality through revert ratios, review coverage, and commit message analysis
 - **Productivity Scoring** - Calculate composite productivity scores for contributors across repositories
+
+### Jira Integration (NEW)
+- **Jira Issue Extraction** - Extract issues and comments from Jira Cloud and Server/Data Center
+- **Multi-Project Support** - Analyze multiple Jira projects with interactive project selection
+- **Time-Based Filtering** - Filter issues by update date using JQL queries
+- **Comment Tracking** - Export all issue comments with author and timestamp
+- **ADF Support** - Automatically converts Atlassian Document Format to plain text
+
+### Core Features
+- **Multi-Source CLI** - Use `--sources` flag to select GitHub, Jira, or both
+- **Auto-Detection** - Automatically detects available sources from environment credentials
 - **Zero Dependencies** - Works with Python standard library only (optional `requests` for better performance)
-- **Secure Token Handling** - Token loaded from environment variable, never exposed in logs or error messages
+- **Secure Token Handling** - Tokens loaded from environment variables, never exposed in logs or error messages
 
 ## Requirements
 
@@ -123,13 +135,39 @@ The tool shows real-time progress with detailed information for each repository:
 
 ### Environment Variables
 
+**GitHub Configuration:**
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GITHUB_TOKEN` | **Yes** | - | GitHub Personal Access Token |
+| `GITHUB_TOKEN` | **Yes*** | - | GitHub Personal Access Token |
 | `GITHUB_ANALYZER_DAYS` | No | 30 | Number of days to analyze |
 | `GITHUB_ANALYZER_OUTPUT_DIR` | No | `github_export` | Output directory for CSV files |
 | `GITHUB_ANALYZER_REPOS_FILE` | No | `repos.txt` | Repository list file |
 | `GITHUB_ANALYZER_VERBOSE` | No | `true` | Enable detailed logging |
+
+**Jira Configuration:**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JIRA_URL` | **Yes*** | - | Jira instance URL (e.g., `https://company.atlassian.net`) |
+| `JIRA_EMAIL` | **Yes*** | - | Jira account email |
+| `JIRA_API_TOKEN` | **Yes*** | - | Jira API token |
+
+*Required only if using that source. Auto-detection skips sources without credentials.
+
+### How to Generate a Jira API Token
+
+**For Jira Cloud (Atlassian Cloud):**
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click **"Create API token"**
+3. Give it a descriptive name (e.g., "dev-analyzer")
+4. Click **"Create"** and copy the token immediately (shown only once!)
+
+**For Jira Server / Data Center:**
+1. Go to **Profile** → **Personal Access Tokens**
+2. Click **"Create token"**
+3. Select appropriate permissions and create
+4. Copy the generated token
 
 **Note:** CLI arguments override environment variables.
 
@@ -149,9 +187,28 @@ astral-sh/ruff
 # Duplicates are automatically removed
 ```
 
+### jira_projects.txt Format
+
+```txt
+# Add Jira project keys to analyze (one per line)
+# Project keys are case-sensitive (usually uppercase)
+
+PROJ
+DEV
+OPS
+
+# Lines starting with # are comments
+# Empty lines are ignored
+# Duplicates are automatically removed
+```
+
+If this file is missing, the tool will prompt you interactively to select from available projects.
+
 ## Output Files
 
-The analyzer generates 7 CSV files in the output directory:
+The analyzer generates CSV files in the output directory. GitHub outputs are always generated when analyzing GitHub, and Jira outputs when analyzing Jira:
+
+**GitHub outputs (7 files):**
 
 ![Analysis Summary](screens/screen3.png)
 
@@ -164,6 +221,13 @@ The analyzer generates 7 CSV files in the output directory:
 | `quality_metrics.csv` | Code quality scores and metrics per repository |
 | `productivity_analysis.csv` | Per-contributor productivity metrics and scores |
 | `contributors_summary.csv` | Contributor overview with commit and PR statistics |
+
+**Jira outputs (2 files):**
+
+| File | Description |
+|------|-------------|
+| `jira_issues_export.csv` | Jira issues with key, summary, status, type, priority, assignee, reporter, dates |
+| `jira_comments_export.csv` | Jira issue comments with issue key, author, date, body |
 
 ### CSV Field Details
 
@@ -341,6 +405,39 @@ export GITHUB_TOKEN=ghp_your_token_here
 - Verify repository names in `repos.txt` are correct
 - Ensure the token has read access to the repositories
 
+### "JIRA_URL environment variable not set"
+```bash
+export JIRA_URL="https://yourcompany.atlassian.net"
+export JIRA_EMAIL="your.email@company.com"
+export JIRA_API_TOKEN="your-api-token"
+```
+
+### "Jira authentication failed"
+- Verify your email matches your Jira account exactly
+- Check that the API token is valid and not expired
+- For Jira Cloud, ensure you're using the correct email (not username)
+- For Jira Server/Data Center, verify the token has appropriate permissions
+
+### "Jira project not found: PROJ"
+- Project keys are case-sensitive (usually uppercase)
+- Verify you have access to the project with your account
+- Check the project key in Jira (visible in issue keys like PROJ-123)
+
+### "Jira rate limit exceeded"
+- The tool automatically retries with exponential backoff
+- If persistent, wait a few minutes and retry
+- Reduce the number of projects in `jira_projects.txt`
+- Use a shorter analysis period with `--days`
+
+### Jira skipped (no credentials)
+- This is expected if you only have GitHub configured
+- To use Jira, set all three required environment variables: `JIRA_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+
+### Empty Jira CSV files
+- Check if projects have issues updated in the specified period
+- Verify project keys in `jira_projects.txt` are correct
+- Ensure your account has permission to view the projects
+
 ## Security
 
 - **Token Security**: The GitHub token is loaded from the `GITHUB_TOKEN` environment variable and is never stored, logged, or exposed in error messages
@@ -373,7 +470,7 @@ pytest tests/ -v
 ruff check src/github_analyzer/
 ```
 
-We aim for **≥95% test coverage**. Open an issue for discussion before starting major changes.
+We aim for **≥90% test coverage**. Open an issue for discussion before starting major changes.
 
 ## License
 

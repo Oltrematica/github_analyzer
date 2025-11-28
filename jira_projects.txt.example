@@ -1,0 +1,26 @@
+# Jira Projects Configuration
+#
+# List Jira project keys to analyze, one per line.
+# Lines starting with '#' are comments and will be ignored.
+# Empty lines are also ignored.
+#
+# Example project keys:
+# PROJ
+# DEV
+# OPS
+#
+# To use this file:
+# 1. Copy to jira_projects.txt: cp jira_projects.txt.example jira_projects.txt
+# 2. Replace example keys with your actual Jira project keys
+# 3. Set the required environment variables:
+#    - JIRA_URL: Your Jira instance URL (e.g., https://company.atlassian.net)
+#    - JIRA_EMAIL: Your Jira account email
+#    - JIRA_API_TOKEN: Your Jira API token
+#
+# Alternatively, run the analyzer without this file to interactively
+# select projects from those available in your Jira instance:
+#   python dev_analyzer.py --sources jira
+#
+# The project keys below are examples - replace them with your own:
+# PROJ
+# DEV
