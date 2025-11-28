@@ -2,6 +2,8 @@
 
 A powerful Python command-line tool for analyzing GitHub repositories and extracting comprehensive metrics about commits, pull requests, issues, and contributor activity. Generate detailed CSV reports for productivity analysis and code quality assessment.
 
+![GitHub Analyzer Banner](screens/screen1.png)
+
 ## Features
 
 - **Commit Analysis** - Track commits with detailed statistics including additions, deletions, merge detection, and revert identification
@@ -106,6 +108,12 @@ python3 github_analyzer.py -r my_repos.txt -d 30
 python3 github_analyzer.py -d 7 -q
 ```
 
+### Analysis in Progress
+
+The tool shows real-time progress with detailed information for each repository:
+
+![Analysis Progress](screens/screen2.png)
+
 ## Configuration
 
 ### Environment Variables
@@ -139,6 +147,8 @@ astral-sh/ruff
 ## Output Files
 
 The analyzer generates 7 CSV files in the output directory:
+
+![Analysis Summary](screens/screen3.png)
 
 | File | Description |
 |------|-------------|
