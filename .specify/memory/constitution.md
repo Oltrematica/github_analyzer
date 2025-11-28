@@ -1,14 +1,11 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: N/A → 1.0.0 (initial ratification)
-Modified principles: N/A (initial creation)
-Added sections:
-  - Core Principles (5 principles)
-  - Technical Standards
-  - Development Workflow
-  - Governance
-Removed sections: N/A
+Version change: 1.0.0 → 1.0.1 (patch: clarification)
+Modified principles:
+  - I. Modular Architecture: Added `core/` to required modules list
+Added sections: None
+Removed sections: None
 Templates requiring updates:
   - .specify/templates/plan-template.md ✅ (no changes needed - compatible)
   - .specify/templates/spec-template.md ✅ (no changes needed - compatible)
@@ -24,7 +21,7 @@ Follow-up TODOs: None
 
 Every feature MUST be implemented as a separate, independently testable module.
 
-- The codebase MUST be organized into distinct modules: `api/`, `analyzers/`, `exporters/`, `cli/`, `config/`
+- The codebase MUST be organized into distinct modules: `api/`, `analyzers/`, `exporters/`, `cli/`, `config/`, `core/`
 - Each module MUST have a single responsibility and clear boundaries
 - Inter-module communication MUST use well-defined interfaces (abstract base classes or protocols)
 - No module may directly access another module's internal state
@@ -162,4 +159,4 @@ This constitution defines non-negotiable standards for the GitHub Analyzer proje
 - Technical debt from violations MUST have remediation timeline
 - Constitution takes precedence over convenience
 
-**Version**: 1.0.0 | **Ratified**: 2025-11-28 | **Last Amended**: 2025-11-28
+**Version**: 1.0.1 | **Ratified**: 2025-11-28 | **Last Amended**: 2025-11-28
