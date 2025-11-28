@@ -1,8 +1,5 @@
 """Tests for CLI output formatting."""
 
-import pytest
-from io import StringIO
-from unittest.mock import patch
 
 from src.github_analyzer.cli.output import Colors, TerminalOutput
 

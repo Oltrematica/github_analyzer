@@ -196,3 +196,231 @@ class TestTokenNeverInExceptions:
         assert token not in repr(error)
         assert token not in error.message
         assert error.details is None or token not in error.details
+
+
+class TestGetBoolEnv:
+    """Test _get_bool_env helper function."""
+
+    def test_returns_true_for_true_values(self) -> None:
+        """Given true-like values, returns True."""
+        from src.github_analyzer.config.settings import _get_bool_env
+
+        for value in ("true", "TRUE", "True", "1", "yes", "YES", "on", "ON"):
+            with patch.dict(os.environ, {"TEST_BOOL": value}):
+                assert _get_bool_env("TEST_BOOL", False) is True
+
+    def test_returns_false_for_false_values(self) -> None:
+        """Given false-like values, returns False."""
+        from src.github_analyzer.config.settings import _get_bool_env
+
+        for value in ("false", "FALSE", "False", "0", "no", "NO", "off", "OFF"):
+            with patch.dict(os.environ, {"TEST_BOOL": value}):
+                assert _get_bool_env("TEST_BOOL", True) is False
+
+    def test_returns_default_for_unset(self) -> None:
+        """Given unset variable, returns default."""
+        from src.github_analyzer.config.settings import _get_bool_env
+
+        with patch.dict(os.environ, {}, clear=True):
+            assert _get_bool_env("UNSET_VAR", True) is True
+            assert _get_bool_env("UNSET_VAR", False) is False
+
+    def test_returns_default_for_invalid(self) -> None:
+        """Given invalid value, returns default."""
+        from src.github_analyzer.config.settings import _get_bool_env
+
+        with patch.dict(os.environ, {"TEST_BOOL": "invalid"}):
+            assert _get_bool_env("TEST_BOOL", True) is True
+            assert _get_bool_env("TEST_BOOL", False) is False
+
+
+class TestGetIntEnv:
+    """Test _get_int_env helper function."""
+
+    def test_returns_integer_value(self) -> None:
+        """Given valid integer string, returns integer."""
+        from src.github_analyzer.config.settings import _get_int_env
+
+        with patch.dict(os.environ, {"TEST_INT": "42"}):
+            assert _get_int_env("TEST_INT", 0) == 42
+
+    def test_returns_default_for_unset(self) -> None:
+        """Given unset variable, returns default."""
+        from src.github_analyzer.config.settings import _get_int_env
+
+        with patch.dict(os.environ, {}, clear=True):
+            assert _get_int_env("UNSET_VAR", 100) == 100
+
+    def test_returns_default_for_invalid(self) -> None:
+        """Given non-integer string, returns default."""
+        from src.github_analyzer.config.settings import _get_int_env
+
+        with patch.dict(os.environ, {"TEST_INT": "not_a_number"}):
+            assert _get_int_env("TEST_INT", 50) == 50
+
+    def test_returns_default_for_empty(self) -> None:
+        """Given empty string, returns default."""
+        from src.github_analyzer.config.settings import _get_int_env
+
+        with patch.dict(os.environ, {"TEST_INT": ""}):
+            assert _get_int_env("TEST_INT", 25) == 25
+
+
+class TestAnalyzerConfigValidate:
+    """Test AnalyzerConfig.validate method."""
+
+    def test_valid_config_passes(self, mock_env_token: str) -> None:
+        """Given valid config, validate passes."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+
+        config = AnalyzerConfig.from_env()
+        # Should not raise
+        config.validate()
+
+    def test_invalid_token_format_raises(self) -> None:
+        """Given invalid token format, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "invalid_token_format"}):
+            config = AnalyzerConfig.from_env()
+            with pytest.raises(ValidationError) as exc_info:
+                config.validate()
+
+            assert "token" in str(exc_info.value).lower()
+
+    def test_zero_days_raises(self, mock_env_token: str) -> None:
+        """Given days=0, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "days", 0)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "days" in str(exc_info.value).lower()
+
+    def test_negative_days_raises(self, mock_env_token: str) -> None:
+        """Given negative days, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "days", -5)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "days" in str(exc_info.value).lower()
+
+    def test_days_over_365_raises(self, mock_env_token: str) -> None:
+        """Given days > 365, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "days", 400)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "days" in str(exc_info.value).lower()
+
+    def test_per_page_zero_raises(self, mock_env_token: str) -> None:
+        """Given per_page=0, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "per_page", 0)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "per_page" in str(exc_info.value).lower()
+
+    def test_per_page_over_100_raises(self, mock_env_token: str) -> None:
+        """Given per_page > 100, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "per_page", 150)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "per_page" in str(exc_info.value).lower()
+
+    def test_zero_timeout_raises(self, mock_env_token: str) -> None:
+        """Given timeout=0, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "timeout", 0)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "timeout" in str(exc_info.value).lower()
+
+    def test_timeout_over_300_raises(self, mock_env_token: str) -> None:
+        """Given timeout > 300, raises ValidationError."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+        from src.github_analyzer.core.exceptions import ValidationError
+
+        config = AnalyzerConfig.from_env()
+        object.__setattr__(config, "timeout", 500)
+
+        with pytest.raises(ValidationError) as exc_info:
+            config.validate()
+
+        assert "timeout" in str(exc_info.value).lower()
+
+
+class TestAnalyzerConfigToDict:
+    """Test AnalyzerConfig.to_dict method."""
+
+    def test_returns_dict_with_all_fields(self, mock_env_token: str) -> None:
+        """Given config, to_dict returns all fields."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+
+        config = AnalyzerConfig.from_env()
+        result = config.to_dict()
+
+        assert "github_token" in result
+        assert "output_dir" in result
+        assert "repos_file" in result
+        assert "days" in result
+        assert "per_page" in result
+        assert "verbose" in result
+        assert "timeout" in result
+        assert "max_pages" in result
+
+    def test_masks_token_in_dict(self, mock_env_token: str) -> None:
+        """Given config, to_dict masks token."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+
+        config = AnalyzerConfig.from_env()
+        result = config.to_dict()
+
+        assert result["github_token"] == "[MASKED]"
+        assert mock_env_token not in str(result)
+
+    def test_preserves_other_values(self, mock_env_token: str) -> None:
+        """Given config, to_dict preserves non-token values."""
+        from src.github_analyzer.config.settings import AnalyzerConfig
+
+        config = AnalyzerConfig.from_env()
+        result = config.to_dict()
+
+        assert result["output_dir"] == config.output_dir
+        assert result["repos_file"] == config.repos_file
+        assert result["days"] == config.days
+        assert result["per_page"] == config.per_page
+        assert result["verbose"] == config.verbose
+        assert result["timeout"] == config.timeout
+        assert result["max_pages"] == config.max_pages

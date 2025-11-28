@@ -1,13 +1,12 @@
 """Tests for custom exceptions."""
 
-import pytest
 
 from src.github_analyzer.core.exceptions import (
-    GitHubAnalyzerError,
-    ConfigurationError,
-    ValidationError,
     APIError,
+    ConfigurationError,
+    GitHubAnalyzerError,
     RateLimitError,
+    ValidationError,
     mask_token,
 )
 

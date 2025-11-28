@@ -1,9 +1,8 @@
 """Tests for GitHub API client."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-import json
+from unittest.mock import Mock, patch
 
+import pytest
 from src.github_analyzer.api.client import GitHubClient
 from src.github_analyzer.config.settings import AnalyzerConfig
 from src.github_analyzer.core.exceptions import APIError, RateLimitError
@@ -224,7 +223,7 @@ class TestGitHubClientPaginate:
         ]
         call_count = [0]
 
-        def mock_request(url, params=None):
+        def mock_request(url, params=None):  # noqa: ARG001
             result = page_results[call_count[0]]
             call_count[0] += 1
             return result
@@ -243,7 +242,7 @@ class TestGitHubClientPaginate:
         client = GitHubClient(mock_config)
 
         # Return full pages each time (same as per_page)
-        def mock_request(url, params=None):
+        def mock_request(url, params=None):  # noqa: ARG001
             return ([{"id": params.get("page", 1)}], {})
 
         with patch.object(client, "_request_with_retry", side_effect=mock_request):
@@ -413,3 +412,121 @@ class TestGitHubClientRequest:
 
             assert result == {"id": 1}
             mock_urllib.assert_called_once()
+
+
+class TestGitHubClientUrllibErrors:
+    """Tests for _request_with_urllib error handling."""
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_handles_url_error(self, mock_urlopen, mock_config):
+        """Test handles URLError."""
+        from urllib.error import URLError
+
+        mock_urlopen.side_effect = URLError("Connection refused")
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_urllib("https://api.github.com/test")
+
+        assert "Network error" in str(exc_info.value)
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_handles_timeout_error(self, mock_urlopen, mock_config):
+        """Test handles TimeoutError."""
+        mock_urlopen.side_effect = TimeoutError("Request timed out")
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_urllib("https://api.github.com/test")
+
+        assert "timed out" in str(exc_info.value).lower()
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_handles_json_decode_error(self, mock_urlopen, mock_config):
+        """Test handles JSONDecodeError."""
+        mock_response = Mock()
+        mock_response.read.return_value = b"not valid json {"
+        mock_response.headers = {}
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=False)
+        mock_urlopen.return_value = mock_response
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_urllib("https://api.github.com/test")
+
+        assert "Invalid JSON" in str(exc_info.value)
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_handles_rate_limit_403(self, mock_urlopen, mock_config):
+        """Test handles rate limit 403."""
+        from urllib.error import HTTPError
+
+        mock_error = HTTPError(
+            url="https://api.github.com/test",
+            code=403,
+            msg="Forbidden",
+            hdrs={"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1234567890"},
+            fp=None,
+        )
+        mock_urlopen.side_effect = mock_error
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        with pytest.raises(RateLimitError) as exc_info:
+            client._request_with_urllib("https://api.github.com/test")
+
+        assert "rate limit" in str(exc_info.value).lower()
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_handles_generic_http_error(self, mock_urlopen, mock_config):
+        """Test handles generic HTTP error."""
+        from urllib.error import HTTPError
+
+        mock_error = HTTPError(
+            url="https://api.github.com/test",
+            code=500,
+            msg="Internal Server Error",
+            hdrs={},
+            fp=None,
+        )
+        mock_urlopen.side_effect = mock_error
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        with pytest.raises(APIError) as exc_info:
+            client._request_with_urllib("https://api.github.com/test")
+
+        assert "500" in str(exc_info.value)
+
+    @patch("src.github_analyzer.api.client.urlopen")
+    def test_builds_url_with_params(self, mock_urlopen, mock_config):
+        """Test builds URL with query parameters."""
+        mock_response = Mock()
+        mock_response.read.return_value = b'{"key": "value"}'
+        mock_response.headers = {}
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=False)
+        mock_urlopen.return_value = mock_response
+
+        client = GitHubClient(mock_config)
+        client._session = None
+
+        client._request_with_urllib(
+            "https://api.github.com/test",
+            params={"page": 1, "per_page": 100}
+        )
+
+        # Verify URL was called with params
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "page=1" in request.full_url
+        assert "per_page=100" in request.full_url

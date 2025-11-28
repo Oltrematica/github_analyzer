@@ -1,16 +1,14 @@
 """Tests for API models."""
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.github_analyzer.api.models import (
     Commit,
-    PullRequest,
-    Issue,
-    RepositoryStats,
-    QualityMetrics,
     ContributorStats,
+    Issue,
     ProductivityAnalysis,
+    PullRequest,
+    RepositoryStats,
     _parse_datetime,
     _safe_get,
 )

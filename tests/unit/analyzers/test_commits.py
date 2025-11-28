@@ -1,8 +1,7 @@
 """Tests for commit analyzer."""
 
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from src.github_analyzer.analyzers.commits import CommitAnalyzer
 from src.github_analyzer.api.models import Commit

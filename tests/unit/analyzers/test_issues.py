@@ -1,7 +1,6 @@
 """Tests for issue analyzer."""
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
 from src.github_analyzer.analyzers.issues import IssueAnalyzer

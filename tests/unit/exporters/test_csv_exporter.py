@@ -1,20 +1,19 @@
 """Tests for CSV exporter."""
 
-import pytest
 import csv
-from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-from src.github_analyzer.exporters.csv_exporter import CSVExporter
+import pytest
 from src.github_analyzer.api.models import (
     Commit,
-    PullRequest,
-    Issue,
-    RepositoryStats,
-    QualityMetrics,
-    ProductivityAnalysis,
     ContributorStats,
+    Issue,
+    ProductivityAnalysis,
+    PullRequest,
+    QualityMetrics,
+    RepositoryStats,
 )
+from src.github_analyzer.exporters.csv_exporter import CSVExporter
 
 
 @pytest.fixture
@@ -29,13 +28,13 @@ class TestCSVExporterInit:
     def test_creates_output_directory(self, tmp_output_dir):
         """Test creates output directory if not exists."""
         assert not tmp_output_dir.exists()
-        exporter = CSVExporter(tmp_output_dir)
+        CSVExporter(tmp_output_dir)
         assert tmp_output_dir.exists()
 
     def test_works_with_existing_directory(self, tmp_output_dir):
         """Test works with existing directory."""
         tmp_output_dir.mkdir(parents=True)
-        exporter = CSVExporter(tmp_output_dir)
+        CSVExporter(tmp_output_dir)
         assert tmp_output_dir.exists()
 
 
@@ -71,7 +70,7 @@ class TestCSVExporterCommits:
         assert result.name == "commits_export.csv"
 
         # Verify CSV content
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -84,7 +83,7 @@ class TestCSVExporterCommits:
         result = exporter.export_commits([])
 
         assert result.exists()
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 0
@@ -129,7 +128,7 @@ class TestCSVExporterPullRequests:
         assert result.exists()
         assert result.name == "pull_requests_export.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -167,7 +166,7 @@ class TestCSVExporterIssues:
         assert result.exists()
         assert result.name == "issues_export.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -208,7 +207,7 @@ class TestCSVExporterRepositorySummary:
         assert result.exists()
         assert result.name == "repository_summary.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -244,7 +243,7 @@ class TestCSVExporterQualityMetrics:
         assert result.exists()
         assert result.name == "quality_metrics.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -289,7 +288,7 @@ class TestCSVExporterProductivity:
         assert result.exists()
         assert result.name == "productivity_analysis.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -324,7 +323,7 @@ class TestCSVExporterContributors:
         assert result.exists()
         assert result.name == "contributors_summary.csv"
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -337,7 +336,7 @@ class TestCSVExporterContributors:
         result = exporter.export_contributors({})
 
         assert result.exists()
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 0
@@ -359,7 +358,7 @@ class TestCSVExporterWriteCsv:
         result = exporter._write_csv("test.csv", fieldnames, rows)
 
         assert result.exists()
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             header = reader.fieldnames
             assert header == ["col1", "col2", "col3"]
@@ -375,7 +374,7 @@ class TestCSVExporterWriteCsv:
 
         result = exporter._write_csv("special.csv", fieldnames, rows)
 
-        with open(result, "r") as f:
+        with open(result) as f:
             reader = csv.DictReader(f)
             data = list(reader)
             assert "Fix:" in data[0]["message"]

@@ -70,6 +70,10 @@ ignore = [
 known-first-party = ["github_analyzer"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
+[tool.ruff.lint.per-file-ignores]
+# Allow unused arguments in tests (pytest fixtures often have side effects)
+"tests/**/*.py" = ["ARG001", "ARG002", "SIM117"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
