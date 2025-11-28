@@ -1,0 +1,68 @@
+[
+  {
+    "number": 100,
+    "title": "Application crashes on startup",
+    "state": "closed",
+    "user": {
+      "login": "bugreporter",
+      "type": "User"
+    },
+    "created_at": "2025-01-05T09:00:00Z",
+    "updated_at": "2025-01-07T14:00:00Z",
+    "closed_at": "2025-01-07T14:00:00Z",
+    "closed_by": {
+      "login": "johndoe"
+    },
+    "comments": 5,
+    "labels": [
+      {"name": "bug"},
+      {"name": "priority-critical"}
+    ],
+    "assignees": [
+      {"login": "johndoe"}
+    ],
+    "html_url": "https://github.com/test/repo/issues/100"
+  },
+  {
+    "number": 101,
+    "title": "Add dark mode support",
+    "state": "open",
+    "user": {
+      "login": "featurerequest",
+      "type": "User"
+    },
+    "created_at": "2025-01-10T11:00:00Z",
+    "updated_at": "2025-01-12T16:00:00Z",
+    "closed_at": null,
+    "closed_by": null,
+    "comments": 10,
+    "labels": [
+      {"name": "enhancement"},
+      {"name": "good-first-issue"}
+    ],
+    "assignees": [],
+    "html_url": "https://github.com/test/repo/issues/101"
+  },
+  {
+    "number": 102,
+    "title": "Memory leak in data processing",
+    "state": "open",
+    "user": {
+      "login": "performanceuser",
+      "type": "User"
+    },
+    "created_at": "2025-01-14T08:30:00Z",
+    "updated_at": "2025-01-14T08:30:00Z",
+    "closed_at": null,
+    "closed_by": null,
+    "comments": 0,
+    "labels": [
+      {"name": "bug"},
+      {"name": "performance"}
+    ],
+    "assignees": [
+      {"login": "janesmith"}
+    ],
+    "html_url": "https://github.com/test/repo/issues/102"
+  }
+]

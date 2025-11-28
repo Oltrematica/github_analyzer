@@ -1,0 +1,19 @@
+# Sample repositories for testing
+# This file contains valid repository entries for testing
+
+# Standard owner/repo format
+facebook/react
+microsoft/vscode
+
+# Full GitHub URLs
+https://github.com/kubernetes/kubernetes
+http://github.com/golang/go
+
+# Repository with special characters in name
+owner/repo-name_with.special
+
+# Comments and empty lines are ignored
+# This is a comment
+
+# Duplicate entries (should be deduplicated)
+facebook/react
