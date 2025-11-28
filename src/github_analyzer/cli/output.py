@@ -23,6 +23,14 @@ class Colors:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
+    MAGENTA = "\033[35m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    ORANGE = "\033[38;5;208m"
+    PINK = "\033[38;5;205m"
+    PURPLE = "\033[38;5;141m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
     RESET = "\033[0m"
@@ -36,6 +44,14 @@ class Colors:
         cls.GREEN = ""
         cls.YELLOW = ""
         cls.RED = ""
+        cls.MAGENTA = ""
+        cls.BRIGHT_MAGENTA = ""
+        cls.BRIGHT_CYAN = ""
+        cls.BRIGHT_GREEN = ""
+        cls.BRIGHT_YELLOW = ""
+        cls.ORANGE = ""
+        cls.PINK = ""
+        cls.PURPLE = ""
         cls.BOLD = ""
         cls.DIM = ""
         cls.RESET = ""
@@ -63,26 +79,26 @@ class TerminalOutput:
 
     def banner(self) -> None:
         """Print welcome banner."""
-        banner = f"""
-{Colors.BOLD}{Colors.CYAN}
-╔═══════════════════════════════════════════════════════════════════╗
-║                                                                   ║
-║   ██████  ██ ████████ ██   ██ ██    ██ ██████                     ║
-║  ██       ██    ██    ██   ██ ██    ██ ██   ██                    ║
-║  ██   ███ ██    ██    ███████ ██    ██ ██████                     ║
-║  ██    ██ ██    ██    ██   ██ ██    ██ ██   ██                    ║
-║   ██████  ██    ██    ██   ██  ██████  ██████                     ║
-║                                                                   ║
-║   █████  ███    ██  █████  ██      ██    ██ ███████ ███████ ██████║
-║  ██   ██ ████   ██ ██   ██ ██       ██  ██     ███  ██      ██   ██
-║  ███████ ██ ██  ██ ███████ ██        ████     ███   █████   ██████║
-║  ██   ██ ██  ██ ██ ██   ██ ██         ██     ███    ██      ██   ██
-║  ██   ██ ██   ████ ██   ██ ███████    ██    ███████ ███████ ██   ██
-║                                                                   ║
-╚═══════════════════════════════════════════════════════════════════╝
-{Colors.RESET}"""
-        print(banner)
-        print(f"{Colors.DIM}Analyze GitHub repositories and export data to CSV{Colors.RESET}")
+        # Gradient-style banner with vivid colors
+        c = Colors
+        print()
+        print(f"{c.BOLD}{c.PURPLE}╔══════════════════════════════════════════════════════════════════════╗{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}████████{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}       {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                      {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}███{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}███████{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                      {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.ORANGE}█████{c.RESET}  {c.BOLD}{c.ORANGE}███{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}█████{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}      {c.BOLD}{c.ORANGE}██{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}██████{c.RESET}   {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}████{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}       {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}     {c.BOLD}{c.ORANGE}███{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}      {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}        {c.BOLD}{c.ORANGE}████{c.RESET}     {c.BOLD}{c.ORANGE}███{c.RESET}   {c.BOLD}{c.ORANGE}█████{c.RESET}   {c.BOLD}{c.ORANGE}██████{c.RESET}   {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}         {c.BOLD}{c.ORANGE}██{c.RESET}     {c.BOLD}{c.ORANGE}███{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET}      {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}████{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET}    {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}╚══════════════════════════════════════════════════════════════════════╝{c.RESET}")
+        print()
+        print(f"  {c.DIM}Analyze GitHub repositories and export data to CSV{c.RESET}")
         print()
 
     def features(self) -> None:

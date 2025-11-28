@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -75,7 +75,7 @@ class GitHubAnalyzer:
         Args:
             repositories: List of validated repositories to analyze.
         """
-        since = datetime.now() - timedelta(days=self._config.days)
+        since = datetime.now(timezone.utc) - timedelta(days=self._config.days)
 
         self._output.log(f"Starting analysis for {len(repositories)} repositories")
         self._output.log(f"Analysis period: {self._config.days} days (since {since.date()})")
