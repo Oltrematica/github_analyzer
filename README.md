@@ -1,7 +1,6 @@
 # GitHub Analyzer
 
 [![Tests](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml)
-[![Tests](https://img.shields.io/badge/tests-320%20passed-brightgreen.svg)](https://github.com/Oltrematica/github_analyzer/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/Oltrematica/github_analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/Oltrematica/github_analyzer)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
