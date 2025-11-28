@@ -2,7 +2,8 @@
 """GitHub Repository Analyzer - Backward Compatible Entry Point.
 
 This script provides backward compatibility with the original
-github_analyzer.py interface while using the new modular architecture.
+github_analyzer.py interface. The recommended entry point is now
+dev_analyzer.py which supports multiple data sources.
 
 For the new modular API, use:
     from src.github_analyzer.cli import main
@@ -13,6 +14,9 @@ For the new modular API, use:
 Usage:
     Set GITHUB_TOKEN environment variable, then run:
     $ python github_analyzer.py
+
+    For multi-source analysis, use dev_analyzer.py instead:
+    $ python dev_analyzer.py --sources github,jira --days 7
 
 Output:
     - commits_export.csv: All commits from all repositories

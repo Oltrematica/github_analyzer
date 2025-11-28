@@ -2,11 +2,16 @@
 
 This module provides the main() entry point and the GitHubAnalyzer
 orchestrator class that coordinates the analysis workflow.
+
+Supports multiple data sources:
+- GitHub: Repository analysis with commits, PRs, issues
+- Jira: Issue tracking with comments and metadata
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,14 +27,17 @@ from src.github_analyzer.analyzers import (
 from src.github_analyzer.api import GitHubClient, RepositoryStats
 from src.github_analyzer.cli.output import TerminalOutput
 from src.github_analyzer.config import AnalyzerConfig, Repository, load_repositories
+from src.github_analyzer.config.settings import DataSource, JiraConfig
+from src.github_analyzer.config.validation import load_jira_projects
 from src.github_analyzer.core.exceptions import (
     ConfigurationError,
     GitHubAnalyzerError,
     RateLimitError,
 )
-from src.github_analyzer.exporters import CSVExporter
+from src.github_analyzer.exporters import CSVExporter, JiraExporter
 
 if TYPE_CHECKING:
+    from src.github_analyzer.api.jira_client import JiraProject
     from src.github_analyzer.api.models import Commit, Issue, PullRequest, QualityMetrics
 
 
@@ -223,14 +231,21 @@ def parse_args() -> argparse.Namespace:
         Parsed arguments namespace.
     """
     parser = argparse.ArgumentParser(
-        description="Analyze GitHub repositories and export metrics to CSV.",
+        description="Analyze GitHub repositories and Jira projects, export metrics to CSV.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python github_analyzer.py --days 7
-  python github_analyzer.py --days 14 --output ./reports
-  python github_analyzer.py --repos my_repos.txt --days 30
+  python dev_analyzer.py --days 7
+  python dev_analyzer.py --sources github --days 14
+  python dev_analyzer.py --sources jira --days 30
+  python dev_analyzer.py --sources github,jira --output ./reports
         """,
+    )
+    parser.add_argument(
+        "--sources", "-s",
+        type=str,
+        default="auto",
+        help="Data sources to analyze: auto, github, jira, or github,jira (default: auto)",
     )
     parser.add_argument(
         "--days", "-d",
@@ -249,6 +264,12 @@ Examples:
         type=str,
         default=None,
         help="Path to repos.txt file (default: repos.txt)",
+    )
+    parser.add_argument(
+        "--jira-projects", "-j",
+        type=str,
+        default=None,
+        help="Path to jira_projects.txt file (default: jira_projects.txt)",
     )
     parser.add_argument(
         "--quiet", "-q",
@@ -305,6 +326,284 @@ def prompt_int(question: str, default: int) -> int:
     except (EOFError, KeyboardInterrupt):
         print()
         return default
+
+
+def parse_sources_list(sources_str: str) -> list[DataSource]:
+    """Parse sources string to list of DataSource.
+
+    Args:
+        sources_str: Comma-separated source names (e.g., "github,jira").
+
+    Returns:
+        List of DataSource values.
+
+    Raises:
+        ValueError: If unknown source name.
+    """
+    sources = []
+    for name in sources_str.lower().split(","):
+        name = name.strip()
+        if name == "github":
+            sources.append(DataSource.GITHUB)
+        elif name == "jira":
+            sources.append(DataSource.JIRA)
+        elif name:
+            raise ValueError(f"Unknown source: {name}. Valid sources: github, jira")
+    return sources
+
+
+def auto_detect_sources() -> list[DataSource]:
+    """Auto-detect available data sources from environment.
+
+    Checks for credentials in environment variables:
+    - GitHub: GITHUB_TOKEN
+    - Jira: JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN
+
+    Returns:
+        List of DataSource values for which credentials are available.
+    """
+    sources = []
+
+    # Check for GitHub token
+    if os.environ.get("GITHUB_TOKEN", "").strip():
+        sources.append(DataSource.GITHUB)
+
+    # Check for Jira credentials (all required)
+    jira_url = os.environ.get("JIRA_URL", "").strip()
+    jira_email = os.environ.get("JIRA_EMAIL", "").strip()
+    jira_token = os.environ.get("JIRA_API_TOKEN", "").strip()
+
+    if jira_url and jira_email and jira_token:
+        sources.append(DataSource.JIRA)
+
+    return sources
+
+
+def validate_sources(sources: list[DataSource]) -> None:
+    """Validate that required credentials exist for sources.
+
+    Args:
+        sources: List of data sources to validate.
+
+    Raises:
+        ValueError: If credentials are missing for a requested source.
+    """
+    for source in sources:
+        if source == DataSource.GITHUB:
+            if not os.environ.get("GITHUB_TOKEN", "").strip():
+                raise ValueError(
+                    "GitHub source requested but GITHUB_TOKEN environment variable not set"
+                )
+        elif source == DataSource.JIRA:
+            jira_url = os.environ.get("JIRA_URL", "").strip()
+            jira_email = os.environ.get("JIRA_EMAIL", "").strip()
+            jira_token = os.environ.get("JIRA_API_TOKEN", "").strip()
+
+            if not (jira_url and jira_email and jira_token):
+                raise ValueError(
+                    "Jira source requested but Jira credentials incomplete. "
+                    "Set JIRA_URL, JIRA_EMAIL, and JIRA_API_TOKEN environment variables."
+                )
+
+
+def format_project_list(projects: list[JiraProject]) -> str:
+    """Format Jira projects for display.
+
+    Args:
+        projects: List of JiraProject objects.
+
+    Returns:
+        Formatted string for terminal display.
+    """
+    lines = []
+    for idx, project in enumerate(projects, 1):
+        desc = project.description[:50] + "..." if len(project.description) > 50 else project.description
+        if desc:
+            lines.append(f"  [{idx}] {project.key} - {project.name} ({desc})")
+        else:
+            lines.append(f"  [{idx}] {project.key} - {project.name}")
+    return "\n".join(lines)
+
+
+def parse_project_selection(selection: str, max_projects: int) -> list[int]:
+    """Parse project selection input to list of indices.
+
+    Args:
+        selection: User input string (e.g., "1,3,5" or "1-3" or "all").
+        max_projects: Maximum number of projects available.
+
+    Returns:
+        List of 0-indexed project indices.
+    """
+    selection = selection.strip().lower()
+
+    if selection == "all":
+        return list(range(max_projects))
+
+    indices = []
+
+    for part in selection.replace(" ", "").split(","):
+        try:
+            if "-" in part:
+                # Range selection (e.g., "1-3")
+                start, end = part.split("-", 1)
+                for i in range(int(start), int(end) + 1):
+                    if 1 <= i <= max_projects:
+                        indices.append(i - 1)  # Convert to 0-indexed
+            else:
+                # Single number
+                num = int(part)
+                if 1 <= num <= max_projects:
+                    indices.append(num - 1)  # Convert to 0-indexed
+        except ValueError:
+            continue
+
+    return sorted(set(indices))
+
+
+def select_jira_projects(
+    projects_file: str,
+    jira_config: JiraConfig | None,
+    save_selection: bool = False,
+) -> list[str]:
+    """Select Jira projects interactively or from file.
+
+    Args:
+        projects_file: Path to jira_projects.txt file.
+        jira_config: Jira configuration (required for interactive selection).
+        save_selection: Whether to save selection to file.
+
+    Returns:
+        List of selected project keys.
+    """
+    # Try loading from file first
+    file_projects = load_jira_projects(projects_file)
+    if file_projects:
+        return file_projects
+
+    # No file or empty - need interactive selection
+    if not jira_config:
+        return []
+
+    # Fetch available projects from Jira
+    from src.github_analyzer.api.jira_client import JiraClient
+
+    client = JiraClient(jira_config)
+    available_projects = client.get_projects()
+
+    if not available_projects:
+        print("No projects found in Jira instance.")
+        return []
+
+    # Display projects
+    print("\nAvailable Jira projects:")
+    print(format_project_list(available_projects))
+    print("\nEnter project numbers (e.g., '1,3,5' or '1-3' or 'all'):")
+
+    try:
+        selection = input("> ").strip()
+        indices = parse_project_selection(selection, len(available_projects))
+
+        if not indices:
+            print("No valid projects selected.")
+            return []
+
+        selected = [available_projects[i].key for i in indices]
+
+        # Optionally save to file
+        if save_selection and prompt_yes_no("Save selection to file for future use?", default=True):
+            Path(projects_file).write_text("\n".join(selected) + "\n")
+            print(f"Saved to {projects_file}")
+
+        return selected
+
+    except (EOFError, KeyboardInterrupt):
+        print("\nSelection cancelled.")
+        return []
+
+
+def run_extraction(
+    sources: list[DataSource],
+    output_dir: str,
+    days: int,
+    repos_file: str | None = None,
+    jira_projects_file: str | None = None,
+    verbose: bool = True,
+    fetch_pr_details: bool = False,
+) -> dict:
+    """Run extraction for specified sources.
+
+    Args:
+        sources: List of data sources to extract from.
+        output_dir: Directory for output CSV files.
+        days: Number of days to analyze.
+        repos_file: Path to repos.txt for GitHub.
+        jira_projects_file: Path to jira_projects.txt for Jira.
+        verbose: Enable verbose output.
+        fetch_pr_details: Fetch full PR details for GitHub.
+
+    Returns:
+        Dictionary with extraction results.
+    """
+    results = {"github": None, "jira": None}
+
+    if DataSource.GITHUB in sources:
+        # Run GitHub extraction
+        config = AnalyzerConfig.from_env()
+        if repos_file:
+            config.repos_file = repos_file
+        config.output_dir = output_dir
+        config.days = days
+        config.verbose = verbose
+        config.validate()
+
+        repositories = load_repositories(config.repos_file)
+
+        analyzer = GitHubAnalyzer(config, fetch_pr_details=fetch_pr_details)
+        try:
+            analyzer.run(repositories)
+            results["github"] = {"status": "success", "repos": len(repositories)}
+        finally:
+            analyzer.close()
+
+    if DataSource.JIRA in sources:
+        # Run Jira extraction
+        from src.github_analyzer.api.jira_client import JiraClient
+
+        jira_config = JiraConfig.from_env()
+        if not jira_config:
+            raise ConfigurationError("Jira credentials not configured")
+
+        # Get Jira projects
+        projects_file = jira_projects_file or jira_config.jira_projects_file
+        project_keys = select_jira_projects(projects_file, jira_config, save_selection=True)
+
+        if not project_keys:
+            print("No Jira projects selected. Skipping Jira extraction.")
+        else:
+            client = JiraClient(jira_config)
+            since = datetime.now(timezone.utc) - timedelta(days=days)
+
+            # Collect issues and comments
+            all_issues = list(client.search_issues(project_keys, since))
+            all_comments = []
+            for issue in all_issues:
+                comments = client.get_comments(issue.key)
+                all_comments.extend(comments)
+
+            # Export Jira data to CSV
+            jira_exporter = JiraExporter(output_dir)
+            issues_file = jira_exporter.export_issues(all_issues)
+            comments_file = jira_exporter.export_comments(all_comments)
+
+            results["jira"] = {
+                "status": "success",
+                "issues": len(all_issues),
+                "comments": len(all_comments),
+                "files": [str(issues_file), str(comments_file)],
+            }
+
+    return results
 
 
 def main() -> int:

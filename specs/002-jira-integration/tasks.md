@@ -24,8 +24,8 @@
 
 **Purpose**: Project initialization and Jira-specific exceptions
 
-- [ ] T001 Add Jira-specific exceptions to src/github_analyzer/core/exceptions.py (JiraAPIError, JiraAuthenticationError, JiraPermissionError, JiraNotFoundError, JiraRateLimitError)
-- [ ] T002 [P] Create test directory structure: tests/unit/api/, tests/unit/config/, tests/unit/exporters/, tests/integration/
+- [x] T001 Add Jira-specific exceptions to src/github_analyzer/core/exceptions.py (JiraAPIError, JiraAuthenticationError, JiraPermissionError, JiraNotFoundError, JiraRateLimitError)
+- [x] T002 [P] Create test directory structure: tests/unit/api/, tests/unit/config/, tests/unit/exporters/, tests/integration/
 
 ---
 
@@ -35,13 +35,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Add DataSource enum to src/github_analyzer/config/settings.py (GITHUB, JIRA values)
-- [ ] T004 Add JiraConfig dataclass to src/github_analyzer/config/settings.py (from_env, validate, __repr__ with masked token)
-- [ ] T005 [P] Add validate_jira_url() function to src/github_analyzer/config/validation.py
-- [ ] T006 [P] Add validate_project_key() function to src/github_analyzer/config/validation.py
-- [ ] T006a [P] Add validate_iso8601_date() function to src/github_analyzer/config/validation.py (FR-021)
-- [ ] T007 [P] Write unit tests for JiraConfig in tests/unit/config/test_jira_settings.py
-- [ ] T008 [P] Write unit tests for Jira validation functions in tests/unit/config/test_jira_validation.py (include ISO 8601 date tests)
+- [x] T003 Add DataSource enum to src/github_analyzer/config/settings.py (GITHUB, JIRA values)
+- [x] T004 Add JiraConfig dataclass to src/github_analyzer/config/settings.py (from_env, validate, __repr__ with masked token)
+- [x] T005 [P] Add validate_jira_url() function to src/github_analyzer/config/validation.py
+- [x] T006 [P] Add validate_project_key() function to src/github_analyzer/config/validation.py
+- [x] T006a [P] Add validate_iso8601_date() function to src/github_analyzer/config/validation.py (FR-021)
+- [x] T007 [P] Write unit tests for JiraConfig in tests/unit/config/test_jira_settings.py
+- [x] T008 [P] Write unit tests for Jira validation functions in tests/unit/config/test_jira_validation.py (include ISO 8601 date tests)
 
 **Checkpoint**: Foundation ready - JiraConfig and validation available. User story implementation can now begin.
 
@@ -57,25 +57,25 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T009 [P] [US1] Create test fixtures for Jira API responses in tests/fixtures/jira_responses.py
-- [ ] T010 [P] [US1] Write unit tests for JiraClient in tests/unit/api/test_jira_client.py (test_connection, get_projects, search_issues, get_comments, pagination, rate_limit_retry)
-- [ ] T011 [P] [US1] Write integration test for Jira extraction flow in tests/integration/test_jira_flow.py
+- [x] T009 [P] [US1] Create test fixtures for Jira API responses in tests/fixtures/jira_responses.py
+- [x] T010 [P] [US1] Write unit tests for JiraClient in tests/unit/api/test_jira_client.py (test_connection, get_projects, search_issues, get_comments, pagination, rate_limit_retry)
+- [x] T011 [P] [US1] Write integration test for Jira extraction flow in tests/integration/test_jira_flow.py
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create JiraProject dataclass in src/github_analyzer/api/jira_client.py
-- [ ] T013 [P] [US1] Create JiraIssue dataclass in src/github_analyzer/api/jira_client.py
-- [ ] T014 [P] [US1] Create JiraComment dataclass in src/github_analyzer/api/jira_client.py
-- [ ] T015 [US1] Implement JiraClient.__init__() with config, session setup, and API version detection in src/github_analyzer/api/jira_client.py
-- [ ] T016 [US1] Implement JiraClient._get_headers() with Basic Auth (base64 email:token) in src/github_analyzer/api/jira_client.py
-- [ ] T017 [US1] Implement JiraClient._make_request() with retry logic and rate limit handling in src/github_analyzer/api/jira_client.py
-- [ ] T018 [US1] Implement JiraClient.test_connection() using /rest/api/{version}/serverInfo in src/github_analyzer/api/jira_client.py
-- [ ] T019 [US1] Implement JiraClient.get_projects() with pagination in src/github_analyzer/api/jira_client.py
-- [ ] T020 [US1] Implement JiraClient.search_issues() with JQL time filter and pagination (yields JiraIssue) in src/github_analyzer/api/jira_client.py
-- [ ] T021 [US1] Implement JiraClient.get_comments() with pagination in src/github_analyzer/api/jira_client.py
-- [ ] T022 [US1] Implement ADF (Atlassian Document Format) to plain text conversion helper in src/github_analyzer/api/jira_client.py
-- [ ] T023 [US1] Export JiraClient and models from src/github_analyzer/api/__init__.py
-- [ ] T024 [US1] Run tests and verify all US1 tests pass
+- [x] T012 [P] [US1] Create JiraProject dataclass in src/github_analyzer/api/jira_client.py
+- [x] T013 [P] [US1] Create JiraIssue dataclass in src/github_analyzer/api/jira_client.py
+- [x] T014 [P] [US1] Create JiraComment dataclass in src/github_analyzer/api/jira_client.py
+- [x] T015 [US1] Implement JiraClient.__init__() with config, session setup, and API version detection in src/github_analyzer/api/jira_client.py
+- [x] T016 [US1] Implement JiraClient._get_headers() with Basic Auth (base64 email:token) in src/github_analyzer/api/jira_client.py
+- [x] T017 [US1] Implement JiraClient._make_request() with retry logic and rate limit handling in src/github_analyzer/api/jira_client.py
+- [x] T018 [US1] Implement JiraClient.test_connection() using /rest/api/{version}/serverInfo in src/github_analyzer/api/jira_client.py
+- [x] T019 [US1] Implement JiraClient.get_projects() with pagination in src/github_analyzer/api/jira_client.py
+- [x] T020 [US1] Implement JiraClient.search_issues() with JQL time filter and pagination (yields JiraIssue) in src/github_analyzer/api/jira_client.py
+- [x] T021 [US1] Implement JiraClient.get_comments() with pagination in src/github_analyzer/api/jira_client.py
+- [x] T022 [US1] Implement ADF (Atlassian Document Format) to plain text conversion helper in src/github_analyzer/api/jira_client.py
+- [x] T023 [US1] Export JiraClient and models from src/github_analyzer/api/__init__.py
+- [x] T024 [US1] Run tests and verify all US1 tests pass
 
 **Checkpoint**: JiraClient fully functional. Can extract issues and comments from any Jira instance.
 
@@ -89,17 +89,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Write unit tests for credential masking in tests/unit/config/test_jira_settings.py (repr, str, error messages)
-- [ ] T026 [P] [US2] Write unit tests for missing credentials handling in tests/unit/config/test_jira_settings.py
+- [x] T025 [P] [US2] Write unit tests for credential masking in tests/unit/config/test_jira_settings.py (repr, str, error messages)
+- [x] T026 [P] [US2] Write unit tests for missing credentials handling in tests/unit/config/test_jira_settings.py
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Add mask_jira_token() helper to src/github_analyzer/core/exceptions.py (reuse pattern from mask_token)
-- [ ] T028 [US2] Update JiraConfig.__repr__() to use masked token in src/github_analyzer/config/settings.py
-- [ ] T029 [US2] Update JiraConfig.to_dict() to use masked token in src/github_analyzer/config/settings.py
-- [ ] T030 [US2] Verify all JiraAPIError subclasses never include token in message in src/github_analyzer/core/exceptions.py
-- [ ] T031 [US2] Implement JiraConfig.from_env() returning None when credentials incomplete in src/github_analyzer/config/settings.py
-- [ ] T032 [US2] Run tests and verify all US2 tests pass
+- [x] T027 [US2] Add mask_jira_token() helper to src/github_analyzer/core/exceptions.py (reuse pattern from mask_token)
+- [x] T028 [US2] Update JiraConfig.__repr__() to use masked token in src/github_analyzer/config/settings.py
+- [x] T029 [US2] Update JiraConfig.to_dict() to use masked token in src/github_analyzer/config/settings.py
+- [x] T030 [US2] Verify all JiraAPIError subclasses never include token in message in src/github_analyzer/core/exceptions.py
+- [x] T031 [US2] Implement JiraConfig.from_env() returning None when credentials incomplete in src/github_analyzer/config/settings.py
+- [x] T032 [US2] Run tests and verify all US2 tests pass
 
 **Checkpoint**: Authentication secure. Credentials never exposed in any output.
 
@@ -113,20 +113,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] Write unit tests for CLI argument parsing (--sources flag) in tests/unit/cli/test_main_args.py
-- [ ] T034 [P] [US3] Write integration test for multi-source extraction in tests/integration/test_multi_source.py
-- [ ] T034a [P] [US3] Write integration test for interactive project selection (FR-009a) in tests/integration/test_interactive_selection.py
+- [x] T033 [P] [US3] Write unit tests for CLI argument parsing (--sources flag) in tests/unit/cli/test_main_args.py
+- [x] T034 [P] [US3] Write integration test for multi-source extraction in tests/integration/test_multi_source.py
+- [x] T034a [P] [US3] Write integration test for interactive project selection (FR-009a) in tests/integration/test_interactive_selection.py
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Add --sources argument to create_parser() in src/github_analyzer/cli/main.py (accepts: github, jira, github,jira)
-- [ ] T036 [US3] Implement source auto-detection logic in src/github_analyzer/cli/main.py (detect available credentials)
-- [ ] T037 [US3] Update run_extraction() to support DataSource list in src/github_analyzer/cli/main.py
-- [ ] T038 [US3] Implement Jira extraction orchestration in main() in src/github_analyzer/cli/main.py
-- [ ] T039 [US3] Implement interactive project selection when jira_projects.txt missing in src/github_analyzer/cli/main.py
-- [ ] T040 [US3] Create dev_analyzer.py as primary entrypoint at repository root
-- [ ] T041 [US3] Update github_analyzer.py as backward compatibility wrapper (imports from dev_analyzer.py)
-- [ ] T042 [US3] Run tests and verify all US3 tests pass
+- [x] T035 [US3] Add --sources argument to create_parser() in src/github_analyzer/cli/main.py (accepts: github, jira, github,jira)
+- [x] T036 [US3] Implement source auto-detection logic in src/github_analyzer/cli/main.py (detect available credentials)
+- [x] T037 [US3] Update run_extraction() to support DataSource list in src/github_analyzer/cli/main.py
+- [x] T038 [US3] Implement Jira extraction orchestration in main() in src/github_analyzer/cli/main.py
+- [x] T039 [US3] Implement interactive project selection when jira_projects.txt missing in src/github_analyzer/cli/main.py
+- [x] T040 [US3] Create dev_analyzer.py as primary entrypoint at repository root
+- [x] T041 [US3] Update github_analyzer.py as backward compatibility wrapper (imports from dev_analyzer.py)
+- [x] T042 [US3] Run tests and verify all US3 tests pass
 
 **Checkpoint**: Multi-platform CLI ready. Both entrypoints work, auto-detection functional.
 
@@ -140,18 +140,18 @@
 
 ### Tests for User Story 4
 
-- [ ] T043 [P] [US4] Write unit tests for JiraExporter in tests/unit/exporters/test_jira_exporter.py (export_issues, export_comments, CSV escaping)
+- [x] T043 [P] [US4] Write unit tests for JiraExporter in tests/unit/exporters/test_jira_exporter.py (export_issues, export_comments, CSV escaping)
 
 ### Implementation for User Story 4
 
-- [ ] T044 [P] [US4] Create JiraExporter class with ISSUE_COLUMNS and COMMENT_COLUMNS constants in src/github_analyzer/exporters/jira_exporter.py
-- [ ] T045 [US4] Implement JiraExporter.__init__() with output_dir in src/github_analyzer/exporters/jira_exporter.py
-- [ ] T046 [US4] Implement JiraExporter.export_issues() with streaming CSV write in src/github_analyzer/exporters/jira_exporter.py
-- [ ] T047 [US4] Implement JiraExporter.export_comments() with streaming CSV write in src/github_analyzer/exporters/jira_exporter.py
-- [ ] T048 [US4] Ensure RFC 4180 CSV escaping (quotes, newlines, commas) in src/github_analyzer/exporters/jira_exporter.py
-- [ ] T049 [US4] Export JiraExporter from src/github_analyzer/exporters/__init__.py
-- [ ] T050 [US4] Integrate JiraExporter into main extraction flow in src/github_analyzer/cli/main.py
-- [ ] T051 [US4] Run tests and verify all US4 tests pass
+- [x] T044 [P] [US4] Create JiraExporter class with ISSUE_COLUMNS and COMMENT_COLUMNS constants in src/github_analyzer/exporters/jira_exporter.py
+- [x] T045 [US4] Implement JiraExporter.__init__() with output_dir in src/github_analyzer/exporters/jira_exporter.py
+- [x] T046 [US4] Implement JiraExporter.export_issues() with streaming CSV write in src/github_analyzer/exporters/jira_exporter.py
+- [x] T047 [US4] Implement JiraExporter.export_comments() with streaming CSV write in src/github_analyzer/exporters/jira_exporter.py
+- [x] T048 [US4] Ensure RFC 4180 CSV escaping (quotes, newlines, commas) in src/github_analyzer/exporters/jira_exporter.py
+- [x] T049 [US4] Export JiraExporter from src/github_analyzer/exporters/__init__.py
+- [x] T050 [US4] Integrate JiraExporter into main extraction flow in src/github_analyzer/cli/main.py
+- [x] T051 [US4] Run tests and verify all US4 tests pass
 
 **Checkpoint**: Export complete. CSV files generated with correct structure and escaping.
 
@@ -161,14 +161,14 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T052 [P] Create JiraIssueAnalyzer for project summaries in src/github_analyzer/analyzers/jira_issues.py
-- [ ] T053 [P] Write unit tests for JiraIssueAnalyzer in tests/unit/analyzers/test_jira_issues.py
-- [ ] T054 [P] Update src/github_analyzer/__init__.py to export new Jira modules
-- [ ] T055 [P] Create example jira_projects.txt at repository root with documentation comments
-- [ ] T056 Run full test suite: pytest tests/ -v --cov=src/github_analyzer
-- [ ] T057 Run linter: ruff check src/github_analyzer/
-- [ ] T058 Validate quickstart.md scenarios manually
-- [ ] T059 Update README.md with Jira integration documentation
+- [x] T052 [P] Create JiraIssueAnalyzer for project summaries in src/github_analyzer/analyzers/jira_issues.py
+- [x] T053 [P] Write unit tests for JiraIssueAnalyzer in tests/unit/analyzers/test_jira_issues.py
+- [x] T054 [P] Update src/github_analyzer/__init__.py to export new Jira modules
+- [x] T055 [P] Create example jira_projects.txt at repository root with documentation comments
+- [x] T056 Run full test suite: pytest tests/ -v --cov=src/github_analyzer
+- [x] T057 Run linter: ruff check src/github_analyzer/
+- [x] T058 Validate quickstart.md scenarios manually
+- [x] T059 Update README.md with Jira integration documentation
 
 ---
 

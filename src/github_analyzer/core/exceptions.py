@@ -135,3 +135,106 @@ def mask_token(value: str) -> str:  # noqa: ARG001
     """
     # Never reveal any part of the token
     return "[MASKED]"
+
+
+# Jira-specific exceptions
+
+
+class JiraAPIError(GitHubAnalyzerError):
+    """Base exception for Jira API errors.
+
+    Used for all Jira-related API failures. Subclasses provide
+    more specific error types.
+
+    Attributes:
+        message: Human-readable error description.
+        status_code: HTTP status code if applicable.
+    """
+
+    exit_code = 2
+
+    def __init__(
+        self,
+        message: str,
+        details: str | None = None,
+        status_code: int | None = None,
+    ) -> None:
+        """Initialize Jira API error.
+
+        Args:
+            message: Human-readable error description.
+            details: Additional context for debugging.
+            status_code: HTTP status code if applicable.
+        """
+        super().__init__(message, details)
+        self.status_code = status_code
+
+
+class JiraAuthenticationError(JiraAPIError):
+    """Raised when Jira authentication fails (HTTP 401).
+
+    This typically indicates invalid credentials (email/token).
+    Token values are NEVER included in error messages.
+    """
+
+    def __init__(
+        self,
+        message: str = "Jira authentication failed",
+        details: str | None = None,
+    ) -> None:
+        """Initialize authentication error."""
+        super().__init__(message, details, status_code=401)
+
+
+class JiraPermissionError(JiraAPIError):
+    """Raised when Jira permission is denied (HTTP 403).
+
+    This typically indicates the authenticated user lacks
+    permission to access the requested resource.
+    """
+
+    def __init__(
+        self,
+        message: str = "Jira permission denied",
+        details: str | None = None,
+    ) -> None:
+        """Initialize permission error."""
+        super().__init__(message, details, status_code=403)
+
+
+class JiraNotFoundError(JiraAPIError):
+    """Raised when Jira resource is not found (HTTP 404).
+
+    This typically indicates an invalid project key or issue key.
+    """
+
+    def __init__(
+        self,
+        message: str = "Jira resource not found",
+        details: str | None = None,
+    ) -> None:
+        """Initialize not found error."""
+        super().__init__(message, details, status_code=404)
+
+
+class JiraRateLimitError(JiraAPIError):
+    """Raised when Jira API rate limit is exceeded (HTTP 429).
+
+    The retry_after attribute indicates when to retry.
+    """
+
+    def __init__(
+        self,
+        message: str = "Jira API rate limit exceeded",
+        details: str | None = None,
+        retry_after: int | None = None,
+    ) -> None:
+        """Initialize rate limit error.
+
+        Args:
+            message: Human-readable error description.
+            details: Additional context for debugging.
+            retry_after: Seconds to wait before retrying.
+        """
+        super().__init__(message, details, status_code=429)
+        self.retry_after = retry_after
