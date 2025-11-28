@@ -465,6 +465,7 @@ def select_jira_projects(
     projects_file: str,
     jira_config: JiraConfig | None,
     interactive: bool = True,
+    output: TerminalOutput | None = None,
 ) -> list[str]:
     """Select Jira projects from file or interactively (FR-009, FR-009a).
 
@@ -473,10 +474,18 @@ def select_jira_projects(
         jira_config: Jira configuration (required to fetch available projects).
         interactive: If True, prompt user when file is missing/empty.
                     If False, use all available projects automatically.
+        output: Optional TerminalOutput for consistent logging.
 
     Returns:
         List of project keys to analyze.
     """
+    # Helper for consistent output
+    def log(msg: str, level: str = "info") -> None:
+        if output:
+            output.log(msg, level)
+        else:
+            print(msg)
+
     # Try loading from file first (FR-009)
     file_projects = load_jira_projects(projects_file)
     if file_projects:
@@ -493,20 +502,20 @@ def select_jira_projects(
     available_projects = client.get_projects()
 
     if not available_projects:
-        print("No projects found in Jira instance.")
+        log("No projects found in Jira instance.", "warning")
         return []
 
     all_keys = [p.key for p in available_projects]
 
     # Non-interactive mode: use all projects automatically
     if not interactive:
-        print(f"\nNo {projects_file} found. Using all {len(all_keys)} available Jira projects.")
+        log(f"No {projects_file} found. Using all {len(all_keys)} available Jira projects.", "info")
         return all_keys
 
     # Interactive mode: prompt user per FR-009a
-    print(f"\n{projects_file} not found or empty.")
-    print(f"Found {len(available_projects)} accessible Jira projects:\n")
-    print(format_project_list(available_projects))
+    log(f"{projects_file} not found or empty.", "info")
+    log(f"Found {len(available_projects)} accessible Jira projects:", "info")
+    print(format_project_list(available_projects))  # Project list always uses print for formatting
     print("\nOptions:")
     print("  [A] Analyze ALL accessible projects")
     print("  [S] Specify project keys manually (comma-separated)")
@@ -517,22 +526,22 @@ def select_jira_projects(
         try:
             choice = input("\nYour choice [A/S/L/Q]: ").strip().upper()
         except (EOFError, KeyboardInterrupt):
-            print("\nJira extraction skipped.")
+            log("Jira extraction skipped.", "warning")
             return []
 
         if choice == "A":
-            print(f"Using all {len(all_keys)} projects.")
+            log(f"Using all {len(all_keys)} projects.", "success")
             return all_keys
 
         elif choice == "S":
             try:
                 manual_input = input("Enter project keys (comma-separated): ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("\nJira extraction skipped.")
+                log("Jira extraction skipped.", "warning")
                 return []
 
             if not manual_input:
-                print("No projects entered.")
+                log("No projects entered.", "warning")
                 continue
 
             # Parse and validate manual input
@@ -541,35 +550,35 @@ def select_jira_projects(
             invalid_keys = [k for k in manual_keys if k not in all_keys]
 
             if invalid_keys:
-                print(f"Warning: Invalid project keys ignored: {', '.join(invalid_keys)}")
+                log(f"Invalid project keys ignored: {', '.join(invalid_keys)}", "warning")
 
             if valid_keys:
-                print(f"Selected {len(valid_keys)} projects: {', '.join(valid_keys)}")
+                log(f"Selected {len(valid_keys)} projects: {', '.join(valid_keys)}", "success")
                 return valid_keys
             else:
-                print("No valid project keys entered. Try again.")
+                log("No valid project keys entered. Try again.", "warning")
 
         elif choice == "L":
             try:
                 selection_input = input("Enter selection (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("\nJira extraction skipped.")
+                log("Jira extraction skipped.", "warning")
                 return []
 
             indices = parse_project_selection(selection_input, len(available_projects))
             if indices:
                 selected_keys = [available_projects[i].key for i in indices]
-                print(f"Selected {len(selected_keys)} projects: {', '.join(selected_keys)}")
+                log(f"Selected {len(selected_keys)} projects: {', '.join(selected_keys)}", "success")
                 return selected_keys
             else:
-                print("Invalid selection. Try again.")
+                log("Invalid selection. Try again.", "warning")
 
         elif choice == "Q":
-            print("Jira extraction skipped.")
+            log("Jira extraction skipped.", "warning")
             return []
 
         else:
-            print("Invalid choice. Please enter A, S, L, or Q.")
+            log("Invalid choice. Please enter A, S, L, or Q.", "warning")
 
 
 def main() -> int:
@@ -659,7 +668,7 @@ def main() -> int:
             jira_config = JiraConfig.from_env()
             if jira_config:
                 projects_file = args.jira_projects or jira_config.jira_projects_file
-                project_keys = select_jira_projects(projects_file, jira_config)
+                project_keys = select_jira_projects(projects_file, jira_config, output=output)
                 output.log(f"Found {len(project_keys)} Jira projects to analyze", "success")
                 for key in project_keys[:5]:
                     output.log(f"  • {key}", "info")
