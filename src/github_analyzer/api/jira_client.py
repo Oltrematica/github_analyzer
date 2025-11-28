@@ -20,7 +20,7 @@ import json
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
@@ -409,9 +409,10 @@ class JiraClient:
         """
         fields = data.get("fields", {})
 
-        # Parse timestamps
-        created = self._parse_datetime(fields.get("created"))
-        updated = self._parse_datetime(fields.get("updated"))
+        # Parse timestamps (created and updated are required, use epoch as fallback)
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        created = self._parse_datetime(fields.get("created")) or epoch
+        updated = self._parse_datetime(fields.get("updated")) or epoch
         resolution_date = self._parse_datetime(fields.get("resolutiondate"))
 
         # Handle description (may be ADF or plain text)
@@ -472,7 +473,9 @@ class JiraClient:
             author_data = item.get("author", {})
             author = author_data.get("displayName", "Unknown")
 
-            created = self._parse_datetime(item.get("created"))
+            # created is required, use epoch as fallback
+            epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+            created = self._parse_datetime(item.get("created")) or epoch
 
             comments.append(
                 JiraComment(
@@ -555,7 +558,7 @@ class JiraClient:
 
         # Text node - extract text directly
         if node_type == "text":
-            return node.get("text", "")
+            return str(node.get("text", ""))
 
         # Container nodes - recurse into content
         content = node.get("content", [])

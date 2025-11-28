@@ -523,7 +523,7 @@ def run_extraction(
     Returns:
         Dictionary with extraction results.
     """
-    results = {"github": None, "jira": None}
+    results: dict[str, dict[str, object] | None] = {"github": None, "jira": None}
 
     if DataSource.GITHUB in sources:
         # Run GitHub extraction
