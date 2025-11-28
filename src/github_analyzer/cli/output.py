@@ -84,11 +84,11 @@ class TerminalOutput:
         print()
         print(f"{c.BOLD}{c.PURPLE}╔══════════════════════════════════════════════════════════════════════╗{c.RESET}")
         print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
-        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}████████{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
-        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}       {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                      {c.BOLD}{c.PURPLE} ║{c.RESET}")
-        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}███{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}███████{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
-        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                      {c.BOLD}{c.PURPLE} ║{c.RESET}")
-        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}                       {c.BOLD}{c.PURPLE} ║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}███████{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                                         {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}      {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                                         {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}█████{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}    {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                                         {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}   {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET} {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}       {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██{c.RESET}                                          {c.BOLD}{c.PURPLE}║{c.RESET}")
+        print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}██████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}███████{c.RESET}  {c.BOLD}{c.BRIGHT_CYAN}████{c.RESET}                                           {c.BOLD}{c.PURPLE}║{c.RESET}")
         print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
         print(f"{c.BOLD}{c.PURPLE}║{c.RESET}   {c.BOLD}{c.ORANGE}█████{c.RESET}  {c.BOLD}{c.ORANGE}███{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}█████{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}      {c.BOLD}{c.ORANGE}██{c.RESET}    {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}███████{c.RESET} {c.BOLD}{c.ORANGE}██████{c.RESET}   {c.BOLD}{c.PURPLE}║{c.RESET}")
         print(f"{c.BOLD}{c.PURPLE}║{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}████{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET} {c.BOLD}{c.ORANGE}██{c.RESET}       {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}     {c.BOLD}{c.ORANGE}███{c.RESET}  {c.BOLD}{c.ORANGE}██{c.RESET}      {c.BOLD}{c.ORANGE}██{c.RESET}   {c.BOLD}{c.ORANGE}██{c.RESET}  {c.BOLD}{c.PURPLE}║{c.RESET}")
@@ -98,7 +98,7 @@ class TerminalOutput:
         print(f"{c.BOLD}{c.PURPLE}║{c.RESET}                                                                      {c.BOLD}{c.PURPLE}║{c.RESET}")
         print(f"{c.BOLD}{c.PURPLE}╚══════════════════════════════════════════════════════════════════════╝{c.RESET}")
         print()
-        print(f"  {c.DIM}Analyze GitHub repositories and export data to CSV{c.RESET}")
+        print(f"  {c.DIM}Analyze GitHub repositories and Jira projects, export to CSV{c.RESET}")
         print()
 
     def features(self) -> None:
@@ -107,7 +107,8 @@ class TerminalOutput:
         features = [
             "📈 Commit Analysis - Track commits with stats, merge/revert detection",
             "🔀 Pull Request Metrics - PR workflow, merge times, review coverage",
-            "🐛 Issue Tracking - Resolution times, categorization, closure rates",
+            "🐛 GitHub Issues - Resolution times, categorization, closure rates",
+            "🎫 Jira Integration - Extract issues and comments from Jira Cloud/Server",
             "👥 Contributor Insights - Top contributors with productivity scores",
             "📊 Quality Metrics - Code quality assessment and scoring",
             "📁 CSV Export - All data exported to CSV for analysis",
