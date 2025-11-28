@@ -60,12 +60,14 @@ class PullRequestAnalyzer:
 
         for raw in raw_prs:
             # Check if PR was updated within our timeframe
-            created_at = raw.get("created_at", "")
-            if created_at:
+            # Since results are sorted by updated_at desc, we can break early
+            updated_at = raw.get("updated_at", "")
+            if updated_at:
                 try:
-                    created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                    if created < since:
-                        continue
+                    updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                    if updated < since:
+                        # All remaining PRs will also be older, so stop processing
+                        break
                 except ValueError:
                     pass
 

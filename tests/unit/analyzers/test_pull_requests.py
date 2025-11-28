@@ -42,16 +42,17 @@ class TestPullRequestAnalyzerFetchAndAnalyze:
         client.paginate.assert_called_once()
         assert result == []
 
-    def test_filters_prs_by_created_date(self):
-        """Test filters PRs created before since date."""
+    def test_filters_prs_by_updated_date(self):
+        """Test filters PRs updated before since date and breaks early."""
         now = datetime.now(timezone.utc)
-        old_date = (now - timedelta(days=60)).isoformat().replace("+00:00", "Z")
-        new_date = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
+        old_updated = (now - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        new_updated = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
 
         client = Mock()
+        # Results are sorted by updated_at desc (newest first)
         client.paginate.return_value = [
-            {"number": 1, "created_at": old_date, "state": "closed"},
-            {"number": 2, "created_at": new_date, "state": "open"},
+            {"number": 2, "updated_at": new_updated, "state": "open"},
+            {"number": 1, "updated_at": old_updated, "state": "closed"},
         ]
 
         analyzer = PullRequestAnalyzer(client)
@@ -60,25 +61,25 @@ class TestPullRequestAnalyzerFetchAndAnalyze:
 
         result = analyzer.fetch_and_analyze(repo, since)
 
-        # Only the newer PR should be included
+        # Only the newer PR should be included (breaks when old one found)
         assert len(result) == 1
         assert result[0].number == 2
 
     def test_fetches_details_when_enabled(self):
         """Test fetches full PR details when fetch_details is True."""
         now = datetime.now(timezone.utc)
-        created = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
+        updated = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
 
         client = Mock()
         client.paginate.return_value = [
-            {"number": 1, "created_at": created, "state": "open"}
+            {"number": 1, "updated_at": updated, "state": "open"}
         ]
         client.get.return_value = {
             "number": 1,
             "title": "Test PR",
             "state": "open",
-            "created_at": created,
-            "updated_at": created,
+            "created_at": updated,
+            "updated_at": updated,
             "user": {"login": "testuser"},
             "additions": 100,
             "deletions": 50,
@@ -97,11 +98,11 @@ class TestPullRequestAnalyzerFetchAndAnalyze:
     def test_skips_details_when_disabled(self):
         """Test skips detail fetch when fetch_details is False."""
         now = datetime.now(timezone.utc)
-        created = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
+        updated = (now - timedelta(days=5)).isoformat().replace("+00:00", "Z")
 
         client = Mock()
         client.paginate.return_value = [
-            {"number": 1, "created_at": created, "state": "open"}
+            {"number": 1, "updated_at": updated, "state": "open"}
         ]
 
         analyzer = PullRequestAnalyzer(client, fetch_details=False)
@@ -117,7 +118,7 @@ class TestPullRequestAnalyzerFetchAndAnalyze:
         """Test handles PRs with invalid date format."""
         client = Mock()
         client.paginate.return_value = [
-            {"number": 1, "created_at": "invalid-date", "state": "open"}
+            {"number": 1, "updated_at": "invalid-date", "state": "open"}
         ]
 
         analyzer = PullRequestAnalyzer(client)
@@ -128,8 +129,8 @@ class TestPullRequestAnalyzerFetchAndAnalyze:
         result = analyzer.fetch_and_analyze(repo, since)
         assert len(result) == 1
 
-    def test_handles_missing_created_at(self):
-        """Test handles PRs without created_at field."""
+    def test_handles_missing_updated_at(self):
+        """Test handles PRs without updated_at field."""
         client = Mock()
         client.paginate.return_value = [
             {"number": 1, "state": "open"}
