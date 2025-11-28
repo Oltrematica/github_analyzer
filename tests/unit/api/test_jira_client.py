@@ -288,6 +288,79 @@ class TestJiraClientSearchIssues:
         assert issues == []
         mock_request.assert_not_called()
 
+    def test_search_issues_server_uses_post_search(self) -> None:
+        """search_issues uses POST /rest/api/2/search for Server/DC."""
+        from src.github_analyzer.api.jira_client import JiraClient, JiraIssue
+
+        # Server/DC config (non-atlassian.net URL)
+        server_config = JiraConfig(
+            jira_url="https://jira.company.com",
+            jira_email="test@company.com",
+            jira_api_token="test-token",
+        )
+        client = JiraClient(server_config)
+        assert client.api_version == "2"  # Verify it's detected as Server
+
+        since_date = datetime(2025, 11, 1, tzinfo=timezone.utc)
+
+        # Server API response format (offset-based pagination)
+        server_response = {
+            "startAt": 0,
+            "maxResults": 100,
+            "total": 2,
+            "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],
+        }
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = server_response
+            issues = list(client.search_issues(["PROJ"], since_date))
+
+        assert len(issues) == 2
+        assert all(isinstance(i, JiraIssue) for i in issues)
+
+        # Verify POST was used with correct endpoint
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "POST"  # HTTP method
+        assert call_args[0][1] == "/rest/api/2/search"  # Endpoint
+
+    def test_search_issues_server_pagination(self) -> None:
+        """search_issues handles offset-based pagination for Server/DC."""
+        from src.github_analyzer.api.jira_client import JiraClient
+
+        server_config = JiraConfig(
+            jira_url="https://jira.company.com",
+            jira_email="test@company.com",
+            jira_api_token="test-token",
+        )
+        client = JiraClient(server_config)
+
+        since_date = datetime(2025, 11, 1, tzinfo=timezone.utc)
+
+        # Page 1: more pages available (startAt + len(issues) < total)
+        page_1 = {
+            "startAt": 0,
+            "maxResults": 2,
+            "total": 3,
+            "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],  # 2 issues
+        }
+
+        # Page 2: last page
+        page_2 = {
+            "startAt": 2,
+            "maxResults": 2,
+            "total": 3,
+            "issues": ISSUE_SEARCH_RESPONSE_PAGE_2["issues"],  # 1 issue
+        }
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.side_effect = [page_1, page_2]
+            issues = list(client.search_issues(["PROJ"], since_date))
+
+        # 2 from page 1 + 1 from page 2
+        assert len(issues) == 3
+        assert mock_request.call_count == 2
+
 
 class TestJiraClientGetComments:
     """Tests for get_comments() method."""

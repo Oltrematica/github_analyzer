@@ -366,8 +366,26 @@ class JiraClient:
         date_str = since_date.strftime("%Y-%m-%d")
         jql = f"project in ({projects_jql}) AND updated >= '{date_str}' ORDER BY updated DESC"
 
-        # Use new /search/jql endpoint with cursor-based pagination
-        # See: https://developer.atlassian.com/changelog/#CHANGE-2046
+        # Use different endpoint/pagination based on API version
+        # - Cloud (v3): GET /search/jql with cursor-based pagination (nextPageToken)
+        # - Server/DC (v2): POST /search with offset-based pagination (startAt/total)
+        if self.api_version == "3":
+            yield from self._search_issues_cloud(jql)
+        else:
+            yield from self._search_issues_server(jql)
+
+    def _search_issues_cloud(self, jql: str) -> Iterator[JiraIssue]:
+        """Search issues using Jira Cloud API (v3).
+
+        Uses GET /rest/api/3/search/jql with cursor-based pagination.
+        See: https://developer.atlassian.com/changelog/#CHANGE-2046
+
+        Args:
+            jql: JQL query string.
+
+        Yields:
+            JiraIssue objects matching the criteria.
+        """
         max_results = 100
         next_page_token: str | None = None
 
@@ -375,7 +393,7 @@ class JiraClient:
             params: dict[str, Any] = {
                 "jql": jql,
                 "maxResults": max_results,
-                "fields": "*all,-comment",  # All fields except comments (fetched separately)
+                "fields": "*all,-comment",
             }
 
             if next_page_token:
@@ -383,7 +401,7 @@ class JiraClient:
 
             response = self._make_request(
                 "GET",
-                f"/rest/api/{self.api_version}/search/jql",
+                "/rest/api/3/search/jql",
                 params=params,
             )
 
@@ -397,6 +415,47 @@ class JiraClient:
                 break
 
             next_page_token = response.get("nextPageToken")
+
+    def _search_issues_server(self, jql: str) -> Iterator[JiraIssue]:
+        """Search issues using Jira Server/Data Center API (v2).
+
+        Uses POST /rest/api/2/search with offset-based pagination.
+
+        Args:
+            jql: JQL query string.
+
+        Yields:
+            JiraIssue objects matching the criteria.
+        """
+        max_results = 100
+        start_at = 0
+
+        while True:
+            # Server API uses POST with JSON body
+            body = {
+                "jql": jql,
+                "startAt": start_at,
+                "maxResults": max_results,
+                "fields": ["*all", "-comment"],
+            }
+
+            response = self._make_request(
+                "POST",
+                "/rest/api/2/search",
+                data=body,
+            )
+
+            issues = response.get("issues", [])
+
+            for issue_data in issues:
+                yield self._parse_issue(issue_data)
+
+            # Check if more pages (offset-based pagination)
+            total = response.get("total", 0)
+            start_at += len(issues)
+
+            if start_at >= total or not issues:
+                break
 
     def _parse_issue(self, data: dict[str, Any]) -> JiraIssue:
         """Parse API response into JiraIssue.
