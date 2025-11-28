@@ -360,25 +360,30 @@ class JiraClient:
             return
 
         # Build JQL query (FR-005)
-        projects_jql = ", ".join(project_keys)
+        # Quote project keys to handle reserved JQL words (e.g., "AS", "IN", "OR")
+        quoted_keys = [f'"{key}"' for key in project_keys]
+        projects_jql = ", ".join(quoted_keys)
         date_str = since_date.strftime("%Y-%m-%d")
         jql = f"project in ({projects_jql}) AND updated >= '{date_str}' ORDER BY updated DESC"
 
-        # Pagination parameters (FR-008)
-        start_at = 0
-        max_results = 100  # Jira maximum
+        # Use new /search/jql endpoint with cursor-based pagination
+        # See: https://developer.atlassian.com/changelog/#CHANGE-2046
+        max_results = 100
+        next_page_token: str | None = None
 
         while True:
-            params = {
+            params: dict[str, Any] = {
                 "jql": jql,
-                "startAt": start_at,
                 "maxResults": max_results,
-                "fields": "summary,description,status,issuetype,priority,assignee,reporter,created,updated,resolutiondate,project",
+                "fields": "*all,-comment",  # All fields except comments (fetched separately)
             }
+
+            if next_page_token:
+                params["nextPageToken"] = next_page_token
 
             response = self._make_request(
                 "GET",
-                f"/rest/api/{self.api_version}/search",
+                f"/rest/api/{self.api_version}/search/jql",
                 params=params,
             )
 
@@ -387,12 +392,11 @@ class JiraClient:
             for issue_data in issues:
                 yield self._parse_issue(issue_data)
 
-            # Check if more pages
-            total = response.get("total", 0)
-            start_at += len(issues)
-
-            if start_at >= total or not issues:
+            # Check if more pages (cursor-based pagination)
+            if response.get("isLast", True) or not issues:
                 break
+
+            next_page_token = response.get("nextPageToken")
 
     def _parse_issue(self, data: dict[str, Any]) -> JiraIssue:
         """Parse API response into JiraIssue.

@@ -41,10 +41,11 @@ class TestJiraExtractionFlow:
 
         # Mock responses for each step
         with mock.patch.object(client, "_make_request") as mock_request:
-            # Setup responses in order
+            # Setup responses in order (new /search/jql format)
             single_page_response = {
-                **ISSUE_SEARCH_RESPONSE_PAGE_1,
-                "total": 2,  # Only 2 issues, no pagination
+                "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],
+                "nextPageToken": None,
+                "isLast": True,
             }
 
             mock_request.side_effect = [
@@ -86,8 +87,9 @@ class TestJiraExtractionFlow:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             single_page_response = {
-                **ISSUE_SEARCH_RESPONSE_PAGE_1,
-                "total": 2,
+                "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],
+                "nextPageToken": None,
+                "isLast": True,
             }
 
             mock_request.return_value = single_page_response
@@ -109,11 +111,9 @@ class TestJiraExtractionFlow:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             mock_request.return_value = {
-                "expand": "schema,names",
-                "startAt": 0,
-                "maxResults": 100,
-                "total": 0,
                 "issues": [],
+                "nextPageToken": None,
+                "isLast": True,
             }
 
             # Use specific date
@@ -135,8 +135,9 @@ class TestJiraExtractionFlow:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             single_page_response = {
-                **ISSUE_SEARCH_RESPONSE_PAGE_1,
-                "total": 2,
+                "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],
+                "nextPageToken": None,
+                "isLast": True,
             }
             mock_request.return_value = single_page_response
 
@@ -198,11 +199,9 @@ class TestJiraExtractionEdgeCases:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             mock_request.return_value = {
-                "expand": "schema,names",
-                "startAt": 0,
-                "maxResults": 100,
-                "total": 0,
                 "issues": [],
+                "nextPageToken": None,
+                "isLast": True,
             }
 
             since_date = datetime(2025, 11, 1, tzinfo=timezone.utc)
@@ -218,10 +217,6 @@ class TestJiraExtractionEdgeCases:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             response = {
-                "expand": "schema,names",
-                "startAt": 0,
-                "maxResults": 100,
-                "total": 1,
                 "issues": [
                     {
                         "id": "10001",
@@ -241,6 +236,8 @@ class TestJiraExtractionEdgeCases:
                         },
                     }
                 ],
+                "nextPageToken": None,
+                "isLast": True,
             }
             mock_request.return_value = response
 
@@ -264,10 +261,6 @@ class TestJiraExtractionEdgeCases:
 
         with mock.patch.object(client, "_make_request") as mock_request:
             response = {
-                "expand": "schema,names",
-                "startAt": 0,
-                "maxResults": 100,
-                "total": 1,
                 "issues": [
                     {
                         "id": "10001",
@@ -287,6 +280,8 @@ class TestJiraExtractionEdgeCases:
                         },
                     }
                 ],
+                "nextPageToken": None,
+                "isLast": True,
             }
             mock_request.return_value = response
 

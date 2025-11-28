@@ -200,10 +200,11 @@ class TestJiraClientSearchIssues:
         client = JiraClient(jira_config)
         since_date = datetime(2025, 11, 1, tzinfo=timezone.utc)
 
-        # Single page with 2 issues
+        # Single page with 2 issues (new /search/jql format)
         single_page_response = {
-            **ISSUE_SEARCH_RESPONSE_PAGE_1,
-            "total": 2,
+            "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],
+            "nextPageToken": None,
+            "isLast": True,
         }
 
         with mock.patch.object(client, "_make_request") as mock_request:
@@ -216,28 +217,24 @@ class TestJiraClientSearchIssues:
         assert issues[0].summary == "First issue"
 
     def test_search_issues_pagination(self, jira_config: JiraConfig) -> None:
-        """search_issues handles pagination correctly."""
+        """search_issues handles cursor-based pagination correctly."""
         from src.github_analyzer.api.jira_client import JiraClient
 
         client = JiraClient(jira_config)
         since_date = datetime(2025, 11, 1, tzinfo=timezone.utc)
 
-        # Create page 1 with total=3 (need 2 pages)
+        # Page 1: has more pages (isLast=False, nextPageToken set)
         page_1 = {
-            "expand": "schema,names",
-            "startAt": 0,
-            "maxResults": 100,
-            "total": 3,
             "issues": ISSUE_SEARCH_RESPONSE_PAGE_1["issues"],  # 2 issues
+            "nextPageToken": "token123",
+            "isLast": False,
         }
 
-        # Create page 2 with total=3, startAt=2 (already fetched 2)
+        # Page 2: last page (isLast=True)
         page_2 = {
-            "expand": "schema,names",
-            "startAt": 2,
-            "maxResults": 100,
-            "total": 3,
             "issues": ISSUE_SEARCH_RESPONSE_PAGE_2["issues"],  # 1 issue
+            "nextPageToken": None,
+            "isLast": True,
         }
 
         with mock.patch.object(client, "_make_request") as mock_request:
@@ -272,10 +269,11 @@ class TestJiraClientSearchIssues:
             mock_request.return_value = ISSUE_SEARCH_EMPTY_RESPONSE
             list(client.search_issues(["PROJ", "DEV"], since_date))
 
-        # Check the JQL in the request
+        # Check the JQL in the request (project keys are quoted for JQL reserved words)
         call_args = mock_request.call_args
-        assert "project in (PROJ, DEV)" in str(call_args) or "project in (PROJ,DEV)" in str(call_args)
-        assert "2025-11-01" in str(call_args)
+        call_str = str(call_args)
+        assert '"PROJ"' in call_str and '"DEV"' in call_str
+        assert "2025-11-01" in call_str
 
     def test_search_issues_empty_project_keys(self, jira_config: JiraConfig) -> None:
         """search_issues returns immediately when project_keys is empty."""

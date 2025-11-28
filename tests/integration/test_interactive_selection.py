@@ -40,10 +40,10 @@ class TestInteractiveProjectSelection:
             JiraProject(key="OPS", name="Operations", description="Ops team project"),
         ]
 
-    def test_prompt_shown_when_projects_file_missing(
+    def test_uses_all_projects_when_file_missing(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:
-        """Interactive prompt shown when jira_projects.txt is missing."""
+        """All projects used when jira_projects.txt is missing."""
         from src.github_analyzer.api import jira_client as jira_module
         from src.github_analyzer.cli.main import select_jira_projects
 
@@ -55,34 +55,36 @@ class TestInteractiveProjectSelection:
             mock_client.get_projects.return_value = mock_projects
 
             with mock.patch.dict(os.environ, jira_env, clear=True):
-                with mock.patch("builtins.input", return_value="1,2"):
-                    result = select_jira_projects(
-                        str(projects_file),
-                        jira_config=JiraConfig.from_env(),
-                    )
+                result = select_jira_projects(
+                    str(projects_file),
+                    jira_config=JiraConfig.from_env(),
+                )
 
-        # Should return selected projects
-        assert "PROJ" in result or "DEV" in result
+        # Should return all available projects
+        assert len(result) == 3
+        assert "PROJ" in result
+        assert "DEV" in result
+        assert "OPS" in result
 
-    def test_all_projects_selectable(
+    def test_uses_all_projects_when_file_empty(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:
-        """User can select 'all' projects."""
+        """All projects used when jira_projects.txt is empty."""
         from src.github_analyzer.api import jira_client as jira_module
         from src.github_analyzer.cli.main import select_jira_projects
 
         projects_file = tmp_path / "jira_projects.txt"
+        projects_file.write_text("")  # Empty file
 
         with mock.patch.object(jira_module, "JiraClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.get_projects.return_value = mock_projects
 
             with mock.patch.dict(os.environ, jira_env, clear=True):
-                with mock.patch("builtins.input", return_value="all"):
-                    result = select_jira_projects(
-                        str(projects_file),
-                        jira_config=JiraConfig.from_env(),
-                    )
+                result = select_jira_projects(
+                    str(projects_file),
+                    jira_config=JiraConfig.from_env(),
+                )
 
         # Should return all projects
         assert len(result) == 3
@@ -109,30 +111,31 @@ class TestInteractiveProjectSelection:
         # Should read from file, not prompt
         assert result == ["PROJ", "DEV"]
 
-    def test_empty_file_triggers_prompt(
+    def test_file_with_projects_uses_file(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:
-        """Empty jira_projects.txt triggers interactive prompt."""
+        """File with project keys uses those keys, not all available."""
         from src.github_analyzer.api import jira_client as jira_module
         from src.github_analyzer.cli.main import select_jira_projects
 
-        # Create empty projects file
+        # Create file with specific projects
         projects_file = tmp_path / "jira_projects.txt"
-        projects_file.write_text("")
+        projects_file.write_text("PROJ\n")
 
         with mock.patch.object(jira_module, "JiraClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.get_projects.return_value = mock_projects
 
             with mock.patch.dict(os.environ, jira_env, clear=True):
-                with mock.patch("builtins.input", return_value="1"):
-                    result = select_jira_projects(
-                        str(projects_file),
-                        jira_config=JiraConfig.from_env(),
-                    )
+                result = select_jira_projects(
+                    str(projects_file),
+                    jira_config=JiraConfig.from_env(),
+                )
 
-        # Should have prompted and returned selection
-        assert len(result) >= 1
+        # Should use only file contents, not all projects
+        assert result == ["PROJ"]
+        # Client should NOT be called since file exists
+        MockClient.assert_not_called()
 
 
 class TestProjectSelectionInput:

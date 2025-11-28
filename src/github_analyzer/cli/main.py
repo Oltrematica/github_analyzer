@@ -464,24 +464,22 @@ def parse_project_selection(selection: str, max_projects: int) -> list[int]:
 def select_jira_projects(
     projects_file: str,
     jira_config: JiraConfig | None,
-    save_selection: bool = False,
 ) -> list[str]:
-    """Select Jira projects interactively or from file.
+    """Select Jira projects from file or use all available.
 
     Args:
         projects_file: Path to jira_projects.txt file.
-        jira_config: Jira configuration (required for interactive selection).
-        save_selection: Whether to save selection to file.
+        jira_config: Jira configuration (required to fetch available projects).
 
     Returns:
-        List of selected project keys.
+        List of project keys to analyze.
     """
     # Try loading from file first
     file_projects = load_jira_projects(projects_file)
     if file_projects:
         return file_projects
 
-    # No file or empty - need interactive selection
+    # No file or empty - use all available projects
     if not jira_config:
         return []
 
@@ -495,31 +493,11 @@ def select_jira_projects(
         print("No projects found in Jira instance.")
         return []
 
-    # Display projects
-    print("\nAvailable Jira projects:")
-    print(format_project_list(available_projects))
-    print("\nEnter project numbers (e.g., '1,3,5' or '1-3' or 'all'):")
+    # Use all available projects
+    all_keys = [p.key for p in available_projects]
+    print(f"\nNo {projects_file} found. Using all {len(all_keys)} available Jira projects.")
 
-    try:
-        selection = input("> ").strip()
-        indices = parse_project_selection(selection, len(available_projects))
-
-        if not indices:
-            print("No valid projects selected.")
-            return []
-
-        selected = [available_projects[i].key for i in indices]
-
-        # Optionally save to file
-        if save_selection and prompt_yes_no("Save selection to file for future use?", default=True):
-            Path(projects_file).write_text("\n".join(selected) + "\n")
-            print(f"Saved to {projects_file}")
-
-        return selected
-
-    except (EOFError, KeyboardInterrupt):
-        print("\nSelection cancelled.")
-        return []
+    return all_keys
 
 
 def run_extraction(
@@ -576,7 +554,7 @@ def run_extraction(
 
         # Get Jira projects
         projects_file = jira_projects_file or jira_config.jira_projects_file
-        project_keys = select_jira_projects(projects_file, jira_config, save_selection=True)
+        project_keys = select_jira_projects(projects_file, jira_config)
 
         if not project_keys:
             print("No Jira projects selected. Skipping Jira extraction.")
@@ -634,6 +612,18 @@ def main() -> int:
 
         config.validate()
 
+        # Determine data sources
+        if args.sources == "auto":
+            sources = auto_detect_sources()
+            if not sources:
+                output.error("No data sources available. Set GITHUB_TOKEN or Jira credentials.")
+                return 1
+            output.log(f"Auto-detected sources: {', '.join(s.value for s in sources)}", "info")
+        else:
+            sources = parse_sources_list(args.sources)
+            validate_sources(sources)
+            output.log(f"Using sources: {', '.join(s.value for s in sources)}", "info")
+
         # Interactive prompts for options not provided via CLI
         print()
 
@@ -664,13 +654,29 @@ def main() -> int:
         output.log(f"Verbose mode: {'Yes' if config.verbose else 'No'}", "info")
         output.log(f"Full PR details: {'Yes' if fetch_pr_details else 'No'}", "info")
 
-        # Load repositories
-        output.log(f"Loading repositories from {config.repos_file}...")
-        repositories = load_repositories(config.repos_file)
-        output.log(f"Found {len(repositories)} repositories to analyze", "success")
+        # Load GitHub repositories if GitHub source is enabled
+        repositories = []
+        if DataSource.GITHUB in sources:
+            output.log(f"Loading repositories from {config.repos_file}...")
+            repositories = load_repositories(config.repos_file)
+            output.log(f"Found {len(repositories)} repositories to analyze", "success")
 
-        for repo in repositories:
-            output.log(f"  • {repo.full_name}", "info")
+            for repo in repositories:
+                output.log(f"  • {repo.full_name}", "info")
+
+        # Load Jira projects if Jira source is enabled
+        jira_config = None
+        project_keys: list[str] = []
+        if DataSource.JIRA in sources:
+            jira_config = JiraConfig.from_env()
+            if jira_config:
+                projects_file = args.jira_projects or jira_config.jira_projects_file
+                project_keys = select_jira_projects(projects_file, jira_config)
+                output.log(f"Found {len(project_keys)} Jira projects to analyze", "success")
+                for key in project_keys[:5]:
+                    output.log(f"  • {key}", "info")
+                if len(project_keys) > 5:
+                    output.log(f"  ... and {len(project_keys) - 5} more", "info")
 
         # Confirm before starting
         print()
@@ -681,11 +687,41 @@ def main() -> int:
         # Run analysis
         output.section("🚀 ANALYSIS")
 
-        analyzer = GitHubAnalyzer(config, fetch_pr_details=fetch_pr_details)
-        try:
-            analyzer.run(repositories)
-        finally:
-            analyzer.close()
+        # Run GitHub analysis
+        if DataSource.GITHUB in sources and repositories:
+            output.log("Starting GitHub analysis...", "info")
+            analyzer = GitHubAnalyzer(config, fetch_pr_details=fetch_pr_details)
+            try:
+                analyzer.run(repositories)
+            finally:
+                analyzer.close()
+
+        # Run Jira extraction
+        if DataSource.JIRA in sources and jira_config and project_keys:
+            output.log("Starting Jira extraction...", "info")
+            from src.github_analyzer.api.jira_client import JiraClient
+
+            client = JiraClient(jira_config)
+            since = datetime.now(timezone.utc) - timedelta(days=config.days)
+
+            # Collect issues and comments
+            output.log(f"Fetching issues from {len(project_keys)} projects...", "info")
+            all_issues = list(client.search_issues(project_keys, since))
+            output.log(f"Found {len(all_issues)} issues", "success")
+
+            output.log("Fetching comments...", "info")
+            all_comments = []
+            for issue in all_issues:
+                comments = client.get_comments(issue.key)
+                all_comments.extend(comments)
+            output.log(f"Found {len(all_comments)} comments", "success")
+
+            # Export Jira data to CSV
+            jira_exporter = JiraExporter(config.output_dir)
+            issues_file = jira_exporter.export_issues(all_issues)
+            comments_file = jira_exporter.export_comments(all_comments)
+            output.log(f"Exported Jira issues to {issues_file}", "success")
+            output.log(f"Exported Jira comments to {comments_file}", "success")
 
         return 0
 

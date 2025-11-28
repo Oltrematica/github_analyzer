@@ -65,12 +65,8 @@ PROJECT_RESPONSE = {
     "description": "Main project for development",
 }
 
-# Issue search response (first page)
+# Issue search response (first page) - new /search/jql format
 ISSUE_SEARCH_RESPONSE_PAGE_1 = {
-    "expand": "schema,names",
-    "startAt": 0,
-    "maxResults": 100,
-    "total": 150,
     "issues": [
         {
             "id": "10001",
@@ -120,14 +116,12 @@ ISSUE_SEARCH_RESPONSE_PAGE_1 = {
             },
         },
     ],
+    "nextPageToken": "token123",
+    "isLast": False,
 }
 
-# Issue search response (second page - last page)
+# Issue search response (second page - last page) - new /search/jql format
 ISSUE_SEARCH_RESPONSE_PAGE_2 = {
-    "expand": "schema,names",
-    "startAt": 100,
-    "maxResults": 100,
-    "total": 150,
     "issues": [
         {
             "id": "10101",
@@ -157,15 +151,15 @@ ISSUE_SEARCH_RESPONSE_PAGE_2 = {
             },
         },
     ],
+    "nextPageToken": None,
+    "isLast": True,
 }
 
-# Empty search response
+# Empty search response - new /search/jql format
 ISSUE_SEARCH_EMPTY_RESPONSE = {
-    "expand": "schema,names",
-    "startAt": 0,
-    "maxResults": 100,
-    "total": 0,
     "issues": [],
+    "nextPageToken": None,
+    "isLast": True,
 }
 
 # Comments response for an issue
