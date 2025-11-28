@@ -386,10 +386,7 @@ def validate_jira_url(url: str) -> bool:
             return False
 
         # Check for dangerous characters
-        if _contains_dangerous_chars(url):
-            return False
-
-        return True
+        return not _contains_dangerous_chars(url)
     except Exception:
         return False
 
@@ -477,10 +474,8 @@ def validate_iso8601_date(date_str: str) -> bool:
             return False
         if not (1 <= day <= 31):
             return False
-        if year < 1900 or year > 2100:
-            return False
 
-        return True
+        return not (year < 1900 or year > 2100)
     except (ValueError, IndexError):
         return False
 
@@ -522,9 +517,8 @@ def load_jira_projects(filepath: str | Path) -> list[str]:
                 continue
 
             # Validate project key format
-            if validate_project_key(line):
-                if line not in seen:
-                    seen.add(line)
-                    projects.append(line)
+            if validate_project_key(line) and line not in seen:
+                seen.add(line)
+                projects.append(line)
 
     return projects
