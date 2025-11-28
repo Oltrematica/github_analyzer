@@ -51,6 +51,23 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
+      - name: Update test count badge
+        if: matrix.python-version == '3.11' && github.ref == 'refs/heads/main'
+        run: |
+          # Extract test count from pytest output
+          TEST_COUNT=$(pytest tests/ --collect-only -q 2>/dev/null | tail -1 | grep -oE '^[0-9]+')
+          echo "Test count: $TEST_COUNT"
+
+          # Create badge JSON for shields.io endpoint
+          echo "{\"schemaVersion\":1,\"label\":\"tests\",\"message\":\"${TEST_COUNT} passed\",\"color\":\"brightgreen\"}" > badge.json
+
+          # Update gist with badge data
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GIST_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/gists/${{ secrets.GIST_ID }} \
+            -d "{\"files\":{\"github_analyzer_tests.json\":{\"content\":$(cat badge.json | jq -Rs .)}}}"
+
   test-stdlib-only:
     name: Test without requests (stdlib only)
     runs-on: ubuntu-latest
