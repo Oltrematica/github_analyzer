@@ -1,5 +1,6 @@
 """Tests for CLI main module."""
 
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
@@ -432,6 +433,7 @@ class TestMain:
 
         with (
             patch("sys.argv", ["prog", "--days", "7", "--quiet", "--full"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test1234567890123456789012"}),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
             patch.object(main_module, "load_repositories", return_value=[]),
             patch.object(main_module, "prompt_yes_no", return_value=False),
