@@ -2,16 +2,16 @@
 """
 GitHub Repository Analyzer
 ==========================
-Analizza repository GitHub estraendo commit, merge, PR e altri dati utili
-per analisi di produttivita e qualita del codice.
+Analyzes GitHub repositories extracting commits, merges, PRs and other useful data
+for productivity and code quality analysis.
 
 Output:
-    - commits_export.csv: Tutti i commit di tutti i repository
-    - pull_requests_export.csv: Tutte le PR di tutti i repository
-    - contributors_summary.csv: Riepilogo per contributor
-    - repository_summary.csv: Riepilogo per repository
-    - quality_metrics.csv: Metriche di qualita per repository
-    - productivity_analysis.csv: Analisi produttivita per autore
+    - commits_export.csv: All commits from all repositories
+    - pull_requests_export.csv: All PRs from all repositories
+    - contributors_summary.csv: Summary by contributor
+    - repository_summary.csv: Summary by repository
+    - quality_metrics.csv: Quality metrics by repository
+    - productivity_analysis.csv: Productivity analysis by author
 """
 
 import os
@@ -23,7 +23,7 @@ from collections import defaultdict
 from typing import Optional
 import re
 
-# Prova a importare requests, altrimenti usa urllib
+# Try to import requests, otherwise use urllib
 try:
     import requests
     HAS_REQUESTS = True
@@ -33,7 +33,7 @@ except ImportError:
     HAS_REQUESTS = False
 
 # =============================================================================
-# CONFIGURAZIONE DEFAULT
+# DEFAULT CONFIGURATION
 # =============================================================================
 
 DEFAULT_DAYS = 30
@@ -43,7 +43,7 @@ PER_PAGE = 100
 VERBOSE = True
 
 # =============================================================================
-# COLORI TERMINALE
+# TERMINAL COLORS
 # =============================================================================
 
 class Colors:
@@ -58,7 +58,7 @@ class Colors:
     RESET = '\033[0m'
 
 def print_banner():
-    """Stampa il banner di benvenuto."""
+    """Print the welcome banner."""
     banner = f"""
 {Colors.CYAN}{Colors.BOLD}
     ╔═══════════════════════════════════════════════════════════════╗
@@ -68,41 +68,41 @@ def print_banner():
     ║                                                               ║
     ╠═══════════════════════════════════════════════════════════════╣
     ║                                                               ║
-    ║  {Colors.RESET}Analizza repository GitHub ed esporta dati in CSV {Colors.CYAN}           ║
-    ║  {Colors.RESET}per analisi di produttivita e qualita del codice. {Colors.CYAN}           ║
+    ║  {Colors.RESET}Analyze GitHub repositories and export data to CSV {Colors.CYAN}          ║
+    ║  {Colors.RESET}for productivity and code quality analysis.       {Colors.CYAN}           ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
 {Colors.RESET}"""
     print(banner)
 
 def print_features():
-    """Stampa le funzionalita del tool."""
+    """Print the tool features."""
     print(f"""
-{Colors.BOLD}📊 COSA FA QUESTO TOOL:{Colors.RESET}
+{Colors.BOLD}📊 WHAT THIS TOOL DOES:{Colors.RESET}
 
-   {Colors.GREEN}✓{Colors.RESET} Analizza {Colors.BOLD}commit{Colors.RESET} (autore, data, linee aggiunte/rimosse, file modificati)
-   {Colors.GREEN}✓{Colors.RESET} Analizza {Colors.BOLD}pull request{Colors.RESET} (stato, reviewer, tempo di merge, approvazioni)
-   {Colors.GREEN}✓{Colors.RESET} Analizza {Colors.BOLD}issues{Colors.RESET} (bug, enhancement, tempo di chiusura)
-   {Colors.GREEN}✓{Colors.RESET} Calcola {Colors.BOLD}metriche di qualita{Colors.RESET} (revert ratio, review coverage, commit quality)
-   {Colors.GREEN}✓{Colors.RESET} Genera {Colors.BOLD}analisi produttivita{Colors.RESET} per ogni contributor
-   {Colors.GREEN}✓{Colors.RESET} Esporta tutto in {Colors.BOLD}file CSV{Colors.RESET} pronti per l'analisi
+   {Colors.GREEN}✓{Colors.RESET} Analyzes {Colors.BOLD}commits{Colors.RESET} (author, date, lines added/removed, files changed)
+   {Colors.GREEN}✓{Colors.RESET} Analyzes {Colors.BOLD}pull requests{Colors.RESET} (state, reviewers, merge time, approvals)
+   {Colors.GREEN}✓{Colors.RESET} Analyzes {Colors.BOLD}issues{Colors.RESET} (bugs, enhancements, time to close)
+   {Colors.GREEN}✓{Colors.RESET} Calculates {Colors.BOLD}quality metrics{Colors.RESET} (revert ratio, review coverage, commit quality)
+   {Colors.GREEN}✓{Colors.RESET} Generates {Colors.BOLD}productivity analysis{Colors.RESET} for each contributor
+   {Colors.GREEN}✓{Colors.RESET} Exports everything to {Colors.BOLD}CSV files{Colors.RESET} ready for analysis
 
-{Colors.BOLD}📁 FILE GENERATI:{Colors.RESET}
+{Colors.BOLD}📁 GENERATED FILES:{Colors.RESET}
 
-   • commits_export.csv         - Tutti i commit con dettagli
-   • pull_requests_export.csv   - Tutte le PR con metriche
-   • issues_export.csv          - Tutte le issues
-   • repository_summary.csv     - Statistiche per repository
-   • quality_metrics.csv        - Metriche di qualita
-   • productivity_analysis.csv  - Analisi produttivita per autore
-   • contributors_summary.csv   - Riepilogo contributors
+   • commits_export.csv         - All commits with details
+   • pull_requests_export.csv   - All PRs with metrics
+   • issues_export.csv          - All issues
+   • repository_summary.csv     - Statistics by repository
+   • quality_metrics.csv        - Quality metrics
+   • productivity_analysis.csv  - Productivity analysis by author
+   • contributors_summary.csv   - Contributors summary
 """)
 
 def print_separator():
     print(f"{Colors.DIM}{'─' * 65}{Colors.RESET}")
 
 def prompt_input(message: str, default: str = None) -> str:
-    """Richiede input all'utente con supporto per valore default."""
+    """Request input from user with default value support."""
     if default:
         prompt = f"{Colors.CYAN}▶{Colors.RESET} {message} [{Colors.DIM}{default}{Colors.RESET}]: "
     else:
@@ -112,26 +112,26 @@ def prompt_input(message: str, default: str = None) -> str:
         value = input(prompt).strip()
         return value if value else default
     except (KeyboardInterrupt, EOFError):
-        print(f"\n{Colors.YELLOW}Operazione annullata.{Colors.RESET}")
+        print(f"\n{Colors.YELLOW}Operation cancelled.{Colors.RESET}")
         sys.exit(0)
 
 def prompt_confirm(message: str, default: bool = True) -> bool:
-    """Richiede conferma si/no."""
-    default_str = "S/n" if default else "s/N"
+    """Request yes/no confirmation."""
+    default_str = "Y/n" if default else "y/N"
     prompt = f"{Colors.CYAN}▶{Colors.RESET} {message} [{default_str}]: "
 
     try:
         value = input(prompt).strip().lower()
         if not value:
             return default
-        return value in ('s', 'si', 'y', 'yes')
+        return value in ('y', 'yes', 's', 'si')
     except (KeyboardInterrupt, EOFError):
-        print(f"\n{Colors.YELLOW}Operazione annullata.{Colors.RESET}")
+        print(f"\n{Colors.YELLOW}Operation cancelled.{Colors.RESET}")
         sys.exit(0)
 
 
 class GitHubAnalyzer:
-    """Analizzatore di repository GitHub."""
+    """GitHub repository analyzer."""
 
     def __init__(self, token: str, output_dir: str, days: int, verbose: bool = True):
         self.token = token
@@ -148,7 +148,7 @@ class GitHubAnalyzer:
         self.request_count = 0
         self.start_time = None
 
-        # Storage per dati aggregati
+        # Storage for aggregated data
         self.all_commits = []
         self.all_prs = []
         self.all_issues = []
@@ -171,11 +171,11 @@ class GitHubAnalyzer:
         })
         self.repo_stats = {}
 
-        # Crea directory output
+        # Create output directory
         os.makedirs(output_dir, exist_ok=True)
 
     def _log(self, message: str, level: str = "info", force: bool = False):
-        """Log con supporto verbose."""
+        """Log with verbose support."""
         if self.verbose or force or level == "error":
             timestamp = datetime.now().strftime("%H:%M:%S")
 
@@ -204,7 +204,7 @@ class GitHubAnalyzer:
             sys.stdout.flush()
 
     def _make_request(self, url: str, params: dict = None) -> Optional[dict]:
-        """Effettua una richiesta HTTP all'API GitHub."""
+        """Make an HTTP request to the GitHub API."""
         if params:
             param_str = "&".join(f"{k}={v}" for k, v in params.items())
             full_url = f"{url}?{param_str}"
@@ -232,33 +232,33 @@ class GitHubAnalyzer:
                     reset_time = response.headers.get("X-RateLimit-Reset", "")
                     if reset_time:
                         reset_dt = datetime.fromtimestamp(int(reset_time))
-                        self._log(f"Rate limit raggiunto! Reset alle {reset_dt.strftime('%H:%M:%S')}", "error", force=True)
+                        self._log(f"Rate limit reached! Reset at {reset_dt.strftime('%H:%M:%S')}", "error", force=True)
                     else:
-                        self._log(f"Accesso negato: {short_url}", "error", force=True)
+                        self._log(f"Access denied: {short_url}", "error", force=True)
                     return None
                 elif response.status_code == 404:
-                    self._log(f"Risorsa non trovata: {short_url}", "warn")
+                    self._log(f"Resource not found: {short_url}", "warn")
                     return None
                 else:
-                    self._log(f"Errore {response.status_code}: {short_url}", "error", force=True)
+                    self._log(f"Error {response.status_code}: {short_url}", "error", force=True)
                     return None
             else:
                 req = urllib.request.Request(full_url, headers=self.headers)
                 with urllib.request.urlopen(req, timeout=30) as response:
                     return json.loads(response.read().decode())
         except Exception as e:
-            self._log(f"Errore richiesta: {e}", "error", force=True)
+            self._log(f"Request error: {e}", "error", force=True)
             return None
 
     def _paginate(self, url: str, params: dict = None) -> list:
-        """Gestisce la paginazione delle richieste GitHub."""
+        """Handle GitHub API request pagination."""
         all_items = []
         page = 1
         params = params or {}
         params["per_page"] = PER_PAGE
 
         short_url = url.replace(self.base_url, "")
-        self._log(f"Inizio paginazione: {short_url}", "debug")
+        self._log(f"Starting pagination: {short_url}", "debug")
 
         while True:
             params["page"] = page
@@ -268,7 +268,7 @@ class GitHubAnalyzer:
                 break
 
             all_items.extend(items)
-            self._log(f"  Pagina {page}: +{len(items)} elementi (totale: {len(all_items)})", "debug")
+            self._log(f"  Page {page}: +{len(items)} items (total: {len(all_items)})", "debug")
 
             if len(items) < PER_PAGE:
                 break
@@ -277,13 +277,13 @@ class GitHubAnalyzer:
 
             # Safety limit
             if page > 50:
-                self._log(f"Raggiunto limite pagine (50) per {short_url}", "warn")
+                self._log(f"Reached page limit (50) for {short_url}", "warn")
                 break
 
         return all_items
 
     def parse_repo_url(self, repo: str) -> tuple:
-        """Estrae owner e repo name da URL o stringa."""
+        """Extract owner and repo name from URL or string."""
         repo = repo.replace("https://github.com/", "")
         repo = repo.replace("http://github.com/", "")
         repo = repo.rstrip("/")
@@ -295,8 +295,8 @@ class GitHubAnalyzer:
         return None, None
 
     def fetch_commits(self, owner: str, repo: str) -> list:
-        """Recupera tutti i commit del repository."""
-        self._log(f"Recupero commit per {owner}/{repo}...", "info")
+        """Fetch all commits from the repository."""
+        self._log(f"Fetching commits for {owner}/{repo}...", "info")
         url = f"{self.base_url}/repos/{owner}/{repo}/commits"
         params = {"since": self.since_date.isoformat()}
 
@@ -366,12 +366,12 @@ class GitHubAnalyzer:
             if author_login:
                 self._update_contributor_stats(author_login, processed_commit, "commit")
 
-        self._log(f"Trovati {len(processed)} commit per {owner}/{repo}", "success")
+        self._log(f"Found {len(processed)} commits for {owner}/{repo}", "success")
         return processed
 
     def fetch_pull_requests(self, owner: str, repo: str) -> list:
-        """Recupera tutte le pull request del repository."""
-        self._log(f"Recupero pull requests per {owner}/{repo}...", "info")
+        """Fetch all pull requests from the repository."""
+        self._log(f"Fetching pull requests for {owner}/{repo}...", "info")
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls"
         params = {"state": "all", "sort": "updated", "direction": "desc"}
 
@@ -452,12 +452,12 @@ class GitHubAnalyzer:
                 if reviewer and reviewer != author:
                     self._update_contributor_stats(reviewer, review, "review")
 
-        self._log(f"Trovate {len(processed)} pull requests per {owner}/{repo}", "success")
+        self._log(f"Found {len(processed)} pull requests for {owner}/{repo}", "success")
         return processed
 
     def fetch_issues(self, owner: str, repo: str) -> list:
-        """Recupera tutte le issue del repository (escluse le PR)."""
-        self._log(f"Recupero issues per {owner}/{repo}...", "info")
+        """Fetch all issues from the repository (excluding PRs)."""
+        self._log(f"Fetching issues for {owner}/{repo}...", "info")
         url = f"{self.base_url}/repos/{owner}/{repo}/issues"
         params = {"state": "all", "since": self.since_date.isoformat()}
 
@@ -508,11 +508,11 @@ class GitHubAnalyzer:
             if author:
                 self._update_contributor_stats(author, processed_issue, "issue")
 
-        self._log(f"Trovate {len(processed)} issues per {owner}/{repo}", "success")
+        self._log(f"Found {len(processed)} issues for {owner}/{repo}", "success")
         return processed
 
     def _update_contributor_stats(self, login: str, data: dict, data_type: str):
-        """Aggiorna le statistiche aggregate per contributor."""
+        """Update aggregated statistics for contributor."""
         stats = self.contributor_stats[login]
         stats["repositories"].add(data.get("repository", ""))
 
@@ -553,7 +553,7 @@ class GitHubAnalyzer:
                 stats["issues_closed"] += 1
 
     def calculate_repo_stats(self, owner: str, repo: str, commits: list, prs: list, issues: list) -> dict:
-        """Calcola statistiche aggregate per repository."""
+        """Calculate aggregated statistics for repository."""
         repo_name = f"{owner}/{repo}"
 
         total_commits = len(commits)
@@ -613,7 +613,7 @@ class GitHubAnalyzer:
         }
 
     def calculate_quality_metrics(self, owner: str, repo: str, commits: list, prs: list) -> dict:
-        """Calcola metriche di qualita del codice."""
+        """Calculate code quality metrics."""
         repo_name = f"{owner}/{repo}"
 
         total_commits = len(commits)
@@ -666,16 +666,16 @@ class GitHubAnalyzer:
         }
 
     def analyze_repository(self, repo: str, repo_index: int = 0, total_repos: int = 0):
-        """Analizza un singolo repository."""
+        """Analyze a single repository."""
         owner, repo_name = self.parse_repo_url(repo)
 
         if not owner or not repo_name:
-            self._log(f"Formato repository non valido: {repo}", "error", force=True)
+            self._log(f"Invalid repository format: {repo}", "error", force=True)
             return
 
         repo_progress = f"[{repo_index}/{total_repos}] " if total_repos > 0 else ""
         print(f"\n{'=' * 65}")
-        self._log(f"{repo_progress}ANALISI REPOSITORY: {owner}/{repo_name}", "info", force=True)
+        self._log(f"{repo_progress}ANALYZING REPOSITORY: {owner}/{repo_name}", "info", force=True)
         print(f"{'=' * 65}")
 
         repo_start = datetime.now()
@@ -688,7 +688,7 @@ class GitHubAnalyzer:
         self.all_prs.extend(prs)
         self.all_issues.extend(issues)
 
-        self._log("Calcolo statistiche repository...", "info")
+        self._log("Calculating repository statistics...", "info")
         repo_stats = self.calculate_repo_stats(owner, repo_name, commits, prs, issues)
         quality_metrics = self.calculate_quality_metrics(owner, repo_name, commits, prs)
 
@@ -699,14 +699,14 @@ class GitHubAnalyzer:
 
         elapsed = (datetime.now() - repo_start).total_seconds()
         self._log(
-            f"Completato {owner}/{repo_name} in {elapsed:.1f}s: "
-            f"{repo_stats['total_commits']} commit, {repo_stats['total_prs']} PR, "
+            f"Completed {owner}/{repo_name} in {elapsed:.1f}s: "
+            f"{repo_stats['total_commits']} commits, {repo_stats['total_prs']} PRs, "
             f"{repo_stats['total_issues']} issues",
             "success", force=True
         )
 
     def generate_productivity_analysis(self) -> list:
-        """Genera analisi di produttivita per ogni contributor."""
+        """Generate productivity analysis for each contributor."""
         productivity = []
 
         for login, stats in self.contributor_stats.items():
@@ -761,8 +761,8 @@ class GitHubAnalyzer:
         return sorted(productivity, key=lambda x: -x["productivity_score"])
 
     def export_to_csv(self):
-        """Esporta tutti i dati in file CSV."""
-        print(f"\n{Colors.BOLD}📁 Esportazione CSV...{Colors.RESET}")
+        """Export all data to CSV files."""
+        print(f"\n{Colors.BOLD}📁 Exporting to CSV...{Colors.RESET}")
 
         if self.all_commits:
             filepath = os.path.join(self.output_dir, "commits_export.csv")
@@ -770,7 +770,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=self.all_commits[0].keys())
                 writer.writeheader()
                 writer.writerows(self.all_commits)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} commits_export.csv ({len(self.all_commits)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} commits_export.csv ({len(self.all_commits)} rows)")
 
         if self.all_prs:
             filepath = os.path.join(self.output_dir, "pull_requests_export.csv")
@@ -778,7 +778,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=self.all_prs[0].keys())
                 writer.writeheader()
                 writer.writerows(self.all_prs)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} pull_requests_export.csv ({len(self.all_prs)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} pull_requests_export.csv ({len(self.all_prs)} rows)")
 
         if self.all_issues:
             filepath = os.path.join(self.output_dir, "issues_export.csv")
@@ -786,7 +786,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=self.all_issues[0].keys())
                 writer.writeheader()
                 writer.writerows(self.all_issues)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} issues_export.csv ({len(self.all_issues)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} issues_export.csv ({len(self.all_issues)} rows)")
 
         if self.repo_stats:
             summaries = [s["summary"] for s in self.repo_stats.values()]
@@ -795,7 +795,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=summaries[0].keys())
                 writer.writeheader()
                 writer.writerows(summaries)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} repository_summary.csv ({len(summaries)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} repository_summary.csv ({len(summaries)} rows)")
 
         if self.repo_stats:
             quality = [s["quality"] for s in self.repo_stats.values()]
@@ -804,7 +804,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=quality[0].keys())
                 writer.writeheader()
                 writer.writerows(quality)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} quality_metrics.csv ({len(quality)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} quality_metrics.csv ({len(quality)} rows)")
 
         productivity = self.generate_productivity_analysis()
         if productivity:
@@ -813,7 +813,7 @@ class GitHubAnalyzer:
                 writer = csv.DictWriter(f, fieldnames=productivity[0].keys())
                 writer.writeheader()
                 writer.writerows(productivity)
-            print(f"   {Colors.GREEN}✓{Colors.RESET} productivity_analysis.csv ({len(productivity)} righe)")
+            print(f"   {Colors.GREEN}✓{Colors.RESET} productivity_analysis.csv ({len(productivity)} rows)")
 
         if self.contributor_stats:
             contributors = []
@@ -839,30 +839,30 @@ class GitHubAnalyzer:
                     writer = csv.DictWriter(f, fieldnames=contributors[0].keys())
                     writer.writeheader()
                     writer.writerows(sorted(contributors, key=lambda x: -x["commits"]))
-                print(f"   {Colors.GREEN}✓{Colors.RESET} contributors_summary.csv ({len(contributors)} righe)")
+                print(f"   {Colors.GREEN}✓{Colors.RESET} contributors_summary.csv ({len(contributors)} rows)")
 
     def run(self, repositories: list):
-        """Esegue l'analisi completa su tutti i repository."""
+        """Run the complete analysis on all repositories."""
         if not repositories:
-            self._log("Nessun repository specificato!", "error", force=True)
+            self._log("No repositories specified!", "error", force=True)
             return
 
         self.start_time = datetime.now()
         total_repos = len(repositories)
 
         print(f"\n{'=' * 65}")
-        print(f"{Colors.BOLD}  🚀 AVVIO ANALISI{Colors.RESET}")
+        print(f"{Colors.BOLD}  🚀 STARTING ANALYSIS{Colors.RESET}")
         print(f"{'=' * 65}")
-        print(f"   Repository da analizzare: {Colors.BOLD}{total_repos}{Colors.RESET}")
-        print(f"   Periodo analisi: ultimi {Colors.BOLD}{self.days}{Colors.RESET} giorni")
-        print(f"   Data inizio periodo: {Colors.BOLD}{self.since_date.strftime('%Y-%m-%d')}{Colors.RESET}")
+        print(f"   Repositories to analyze: {Colors.BOLD}{total_repos}{Colors.RESET}")
+        print(f"   Analysis period: last {Colors.BOLD}{self.days}{Colors.RESET} days")
+        print(f"   Period start date: {Colors.BOLD}{self.since_date.strftime('%Y-%m-%d')}{Colors.RESET}")
         print(f"   Output directory: {Colors.BOLD}{os.path.abspath(self.output_dir)}{Colors.RESET}")
 
         for idx, repo in enumerate(repositories, 1):
             try:
                 self.analyze_repository(repo, idx, total_repos)
             except Exception as e:
-                self._log(f"Errore analisi {repo}: {e}", "error", force=True)
+                self._log(f"Analysis error for {repo}: {e}", "error", force=True)
                 if self.verbose:
                     import traceback
                     traceback.print_exc()
@@ -872,19 +872,19 @@ class GitHubAnalyzer:
         total_time = (datetime.now() - self.start_time).total_seconds()
 
         print(f"\n{'=' * 65}")
-        print(f"{Colors.GREEN}{Colors.BOLD}  ✅ ANALISI COMPLETATA!{Colors.RESET}")
+        print(f"{Colors.GREEN}{Colors.BOLD}  ✅ ANALYSIS COMPLETED!{Colors.RESET}")
         print(f"{'=' * 65}")
-        print(f"   ⏱️  Tempo totale: {Colors.BOLD}{total_time:.1f}{Colors.RESET} secondi")
-        print(f"   🌐 Richieste API: {Colors.BOLD}{self.request_count}{Colors.RESET}")
-        print(f"   📝 Commit analizzati: {Colors.BOLD}{len(self.all_commits)}{Colors.RESET}")
-        print(f"   🔀 Pull request analizzate: {Colors.BOLD}{len(self.all_prs)}{Colors.RESET}")
-        print(f"   🎫 Issues analizzate: {Colors.BOLD}{len(self.all_issues)}{Colors.RESET}")
-        print(f"   👥 Contributors trovati: {Colors.BOLD}{len(self.contributor_stats)}{Colors.RESET}")
-        print(f"\n   📁 File generati in: {Colors.CYAN}{os.path.abspath(self.output_dir)}/{Colors.RESET}")
+        print(f"   ⏱️  Total time: {Colors.BOLD}{total_time:.1f}{Colors.RESET} seconds")
+        print(f"   🌐 API requests: {Colors.BOLD}{self.request_count}{Colors.RESET}")
+        print(f"   📝 Commits analyzed: {Colors.BOLD}{len(self.all_commits)}{Colors.RESET}")
+        print(f"   🔀 Pull requests analyzed: {Colors.BOLD}{len(self.all_prs)}{Colors.RESET}")
+        print(f"   🎫 Issues analyzed: {Colors.BOLD}{len(self.all_issues)}{Colors.RESET}")
+        print(f"   👥 Contributors found: {Colors.BOLD}{len(self.contributor_stats)}{Colors.RESET}")
+        print(f"\n   📁 Files generated in: {Colors.CYAN}{os.path.abspath(self.output_dir)}/{Colors.RESET}")
 
 
 def load_repos_from_file(filepath: str) -> list:
-    """Carica la lista di repository da file."""
+    """Load list of repositories from file."""
     repos = []
     if os.path.exists(filepath):
         with open(filepath, 'r') as f:
@@ -896,14 +896,14 @@ def load_repos_from_file(filepath: str) -> list:
 
 
 def create_sample_repos_file(filepath: str):
-    """Crea un file repos.txt di esempio."""
-    sample_content = """# GitHub Repository Analyzer - Lista Repository
-# Inserisci un repository per riga
-# Formati supportati:
+    """Create a sample repos.txt file."""
+    sample_content = """# GitHub Repository Analyzer - Repository List
+# Enter one repository per line
+# Supported formats:
 #   owner/repo
 #   https://github.com/owner/repo
 #
-# Esempio:
+# Example:
 # facebook/react
 # microsoft/vscode
 # https://github.com/torvalds/linux
@@ -914,7 +914,7 @@ def create_sample_repos_file(filepath: str):
 
 
 def validate_token(token: str) -> bool:
-    """Verifica se il token GitHub e valido."""
+    """Check if the GitHub token is valid."""
     if not token or len(token) < 10:
         return False
 
@@ -937,66 +937,66 @@ def validate_token(token: str) -> bool:
 
 
 def main():
-    """Funzione principale interattiva."""
+    """Main interactive function."""
 
-    # Banner e presentazione
+    # Banner and presentation
     print_banner()
     print_features()
 
     print_separator()
-    print(f"{Colors.BOLD}⚙️  CONFIGURAZIONE{Colors.RESET}\n")
+    print(f"{Colors.BOLD}⚙️  CONFIGURATION{Colors.RESET}\n")
 
-    # 1. Richiedi GitHub Token
-    print(f"   Per usare questo tool hai bisogno di un {Colors.BOLD}GitHub Personal Access Token{Colors.RESET}.")
-    print(f"   Crealo su: {Colors.CYAN}https://github.com/settings/tokens{Colors.RESET}")
-    print(f"   Permessi necessari: {Colors.DIM}repo (full control){Colors.RESET}\n")
+    # 1. Request GitHub Token
+    print(f"   To use this tool you need a {Colors.BOLD}GitHub Personal Access Token{Colors.RESET}.")
+    print(f"   Create one at: {Colors.CYAN}https://github.com/settings/tokens{Colors.RESET}")
+    print(f"   Required permissions: {Colors.DIM}repo (full control){Colors.RESET}\n")
 
-    token = prompt_input("Inserisci il tuo GitHub Token")
+    token = prompt_input("Enter your GitHub Token")
 
     if not token:
-        print(f"\n{Colors.RED}❌ Token non fornito. Impossibile continuare.{Colors.RESET}")
+        print(f"\n{Colors.RED}❌ Token not provided. Cannot continue.{Colors.RESET}")
         sys.exit(1)
 
-    # Valida token
-    print(f"\n{Colors.DIM}   Verifica token in corso...{Colors.RESET}", end=" ")
+    # Validate token
+    print(f"\n{Colors.DIM}   Validating token...{Colors.RESET}", end=" ")
     sys.stdout.flush()
 
     if validate_token(token):
-        print(f"{Colors.GREEN}✓ Token valido!{Colors.RESET}")
+        print(f"{Colors.GREEN}✓ Valid token!{Colors.RESET}")
     else:
-        print(f"{Colors.RED}✗ Token non valido o senza permessi sufficienti.{Colors.RESET}")
-        if not prompt_confirm("Vuoi continuare comunque?", default=False):
+        print(f"{Colors.RED}✗ Invalid token or insufficient permissions.{Colors.RESET}")
+        if not prompt_confirm("Continue anyway?", default=False):
             sys.exit(1)
 
-    # 2. Verifica/crea file repos.txt
+    # 2. Check/create repos.txt file
     print()
     repos_file = DEFAULT_REPOS_FILE
 
     if not os.path.exists(repos_file):
-        print(f"   {Colors.YELLOW}⚠{Colors.RESET}  File {Colors.BOLD}{repos_file}{Colors.RESET} non trovato.")
+        print(f"   {Colors.YELLOW}⚠{Colors.RESET}  File {Colors.BOLD}{repos_file}{Colors.RESET} not found.")
         create_sample_repos_file(repos_file)
-        print(f"   {Colors.GREEN}✓{Colors.RESET}  Creato file di esempio: {Colors.BOLD}{repos_file}{Colors.RESET}")
+        print(f"   {Colors.GREEN}✓{Colors.RESET}  Created sample file: {Colors.BOLD}{repos_file}{Colors.RESET}")
 
     repos = load_repos_from_file(repos_file)
 
     if not repos:
-        print(f"\n   {Colors.YELLOW}⚠{Colors.RESET}  Nessun repository trovato in {Colors.BOLD}{repos_file}{Colors.RESET}")
-        print(f"   Aggiungi i repository da analizzare (uno per riga) e rilancia lo script.")
-        print(f"\n   Esempio contenuto {repos_file}:")
+        print(f"\n   {Colors.YELLOW}⚠{Colors.RESET}  No repositories found in {Colors.BOLD}{repos_file}{Colors.RESET}")
+        print(f"   Add the repositories to analyze (one per line) and rerun the script.")
+        print(f"\n   Example {repos_file} content:")
         print(f"   {Colors.DIM}owner/repo1")
         print(f"   owner/repo2")
         print(f"   https://github.com/org/project{Colors.RESET}")
         sys.exit(0)
 
-    print(f"\n   {Colors.GREEN}✓{Colors.RESET}  Trovati {Colors.BOLD}{len(repos)}{Colors.RESET} repository in {repos_file}:")
+    print(f"\n   {Colors.GREEN}✓{Colors.RESET}  Found {Colors.BOLD}{len(repos)}{Colors.RESET} repositories in {repos_file}:")
     for r in repos[:5]:
         print(f"      {Colors.DIM}• {r}{Colors.RESET}")
     if len(repos) > 5:
-        print(f"      {Colors.DIM}... e altri {len(repos) - 5}{Colors.RESET}")
+        print(f"      {Colors.DIM}... and {len(repos) - 5} more{Colors.RESET}")
 
-    # 3. Chiedi periodo di analisi
+    # 3. Ask for analysis period
     print()
-    days_str = prompt_input(f"Quanti giorni vuoi analizzare?", str(DEFAULT_DAYS))
+    days_str = prompt_input(f"How many days do you want to analyze?", str(DEFAULT_DAYS))
 
     try:
         days = int(days_str)
@@ -1005,27 +1005,27 @@ def main():
     except ValueError:
         days = DEFAULT_DAYS
 
-    # 4. Directory output
+    # 4. Output directory
     output_dir = DEFAULT_OUTPUT_DIR
 
-    # 5. Conferma e avvio
+    # 5. Confirm and start
     print()
     print_separator()
-    print(f"\n{Colors.BOLD}📋 RIEPILOGO CONFIGURAZIONE:{Colors.RESET}")
-    print(f"   • Repository: {Colors.BOLD}{len(repos)}{Colors.RESET}")
-    print(f"   • Periodo: ultimi {Colors.BOLD}{days}{Colors.RESET} giorni")
+    print(f"\n{Colors.BOLD}📋 CONFIGURATION SUMMARY:{Colors.RESET}")
+    print(f"   • Repositories: {Colors.BOLD}{len(repos)}{Colors.RESET}")
+    print(f"   • Period: last {Colors.BOLD}{days}{Colors.RESET} days")
     print(f"   • Output: {Colors.BOLD}{output_dir}/{Colors.RESET}")
     print()
 
-    if not prompt_confirm("Avviare l'analisi?", default=True):
-        print(f"\n{Colors.YELLOW}Analisi annullata.{Colors.RESET}")
+    if not prompt_confirm("Start the analysis?", default=True):
+        print(f"\n{Colors.YELLOW}Analysis cancelled.{Colors.RESET}")
         sys.exit(0)
 
-    # Avvia analisi
+    # Start analysis
     analyzer = GitHubAnalyzer(token, output_dir, days, verbose=VERBOSE)
     analyzer.run(repos)
 
-    print(f"\n{Colors.GREEN}Grazie per aver usato GitHub Analyzer!{Colors.RESET}\n")
+    print(f"\n{Colors.GREEN}Thank you for using GitHub Analyzer!{Colors.RESET}\n")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 **Feature Branch**: `001-modular-refactor`
 **Created**: 2025-11-28
 **Status**: Draft
-**Input**: User description: "Refactoring modulare del GitHub Analyzer: scomporre il monolite github_analyzer.py (1000+ righe) in moduli testabili seguendo la constitution (api/, analyzers/, exporters/, cli/, config/). Implementare gestione sicura dei token via environment variables, aggiungere validazione input, creare struttura per unit test con pytest."
+**Input**: User description: "Modular Refactoring of GitHub Analyzer: Breaking down the monolithic github_analyzer.py (1000+ lines) into testable modules following the project constitution (api/, analyzers/, exporters/, cli/, config/). Implement secure token management via environment variables, add input validation, and create a unit test structure with pytest."
 
 ## User Scenarios & Testing *(mandatory)*
 
