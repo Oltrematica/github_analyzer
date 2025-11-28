@@ -551,6 +551,14 @@ class JiraClient:
     def _parse_datetime(self, value: str | None) -> datetime | None:
         """Parse Jira datetime string to datetime object.
 
+        Jira API returns dates in format: "2025-11-28T10:30:00.000+0000"
+        Python's fromisoformat() expects: "2025-11-28T10:30:00+00:00"
+
+        This method handles the conversion by:
+        1. Stripping milliseconds (.000) - not needed for our analysis
+        2. Adding colon to timezone (+0000 → +00:00) - required by fromisoformat
+        3. Converting 'Z' suffix to '+00:00' - ISO 8601 UTC shorthand
+
         Args:
             value: Jira datetime string (e.g., "2025-11-28T10:30:00.000+0000").
 
@@ -560,16 +568,20 @@ class JiraClient:
         if not value:
             return None
 
-        # Jira format: "2025-11-28T10:30:00.000+0000"
         try:
-            # Remove milliseconds and fix timezone format
+            # Step 1: Remove milliseconds (.000) and keep the timezone part
+            # Example: "2025-11-28T10:30:00.000+0000" → "2025-11-28T10:30:00+0000"
             if "." in value:
+                # Split at decimal, take datetime part + last 5 chars (timezone)
                 value = value.split(".")[0] + value[-5:]
 
-            # Handle +0000 format (no colon)
+            # Step 2: Add colon to timezone offset for fromisoformat compatibility
+            # Example: "+0000" → "+00:00", "-0500" → "-05:00"
+            # Check if last 5 chars look like a timezone without colon
             if value[-5:].replace("-", "+")[0] in "+-" and ":" not in value[-5:]:
                 value = value[:-2] + ":" + value[-2:]
 
+            # Step 3: Handle 'Z' (Zulu/UTC) suffix used in some ISO 8601 formats
             return datetime.fromisoformat(value.replace("Z", "+00:00"))
         except (ValueError, IndexError):
             return None
