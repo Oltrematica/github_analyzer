@@ -263,6 +263,50 @@ Examples:
     return parser.parse_args()
 
 
+def prompt_yes_no(question: str, default: bool = False) -> bool:
+    """Prompt user for yes/no answer.
+
+    Args:
+        question: Question to ask.
+        default: Default value if user presses Enter.
+
+    Returns:
+        True for yes, False for no.
+    """
+    default_hint = "[Y/n]" if default else "[y/N]"
+    try:
+        answer = input(f"{question} {default_hint}: ").strip().lower()
+        if not answer:
+            return default
+        return answer in ("y", "yes", "s", "si", "sì")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+
+
+def prompt_int(question: str, default: int) -> int:
+    """Prompt user for integer value.
+
+    Args:
+        question: Question to ask.
+        default: Default value if user presses Enter.
+
+    Returns:
+        Integer value entered by user.
+    """
+    try:
+        answer = input(f"{question} [{default}]: ").strip()
+        if not answer:
+            return default
+        return int(answer)
+    except ValueError:
+        print(f"Invalid number, using default: {default}")
+        return default
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+
+
 def main() -> int:
     """Main entry point for CLI.
 
@@ -284,19 +328,42 @@ def main() -> int:
         config = AnalyzerConfig.from_env()
 
         # Override with CLI arguments
-        if args.days is not None:
-            config.days = args.days
         if args.output is not None:
             config.output_dir = args.output
         if args.repos is not None:
             config.repos_file = args.repos
-        if args.quiet:
-            config.verbose = False
 
         config.validate()
 
+        # Interactive prompts for options not provided via CLI
+        print()
+
+        # Days - ask if not provided via CLI
+        if args.days is not None:
+            config.days = args.days
+        else:
+            config.days = prompt_int("How many days to analyze?", config.days)
+
+        # Quiet mode - ask if not provided via CLI
+        if args.quiet:
+            config.verbose = False
+        else:
+            config.verbose = not prompt_yes_no("Quiet mode (less output)?", default=False)
+
+        # Full PR details - ask if not provided via CLI
+        if args.full:
+            fetch_pr_details = True
+        else:
+            fetch_pr_details = prompt_yes_no(
+                "Fetch full PR details? (slower, includes additions/deletions)",
+                default=False
+            )
+
+        print()
         output.log(f"Output directory: {config.output_dir}", "info")
         output.log(f"Analysis period: {config.days} days", "info")
+        output.log(f"Verbose mode: {'Yes' if config.verbose else 'No'}", "info")
+        output.log(f"Full PR details: {'Yes' if fetch_pr_details else 'No'}", "info")
 
         # Load repositories
         output.log(f"Loading repositories from {config.repos_file}...")
@@ -306,10 +373,16 @@ def main() -> int:
         for repo in repositories:
             output.log(f"  • {repo.full_name}", "info")
 
-        # Confirm and run
+        # Confirm before starting
+        print()
+        if not prompt_yes_no("Start analysis?", default=True):
+            output.log("Analysis cancelled by user", "warning")
+            return 0
+
+        # Run analysis
         output.section("🚀 ANALYSIS")
 
-        analyzer = GitHubAnalyzer(config, fetch_pr_details=args.full)
+        analyzer = GitHubAnalyzer(config, fetch_pr_details=fetch_pr_details)
         try:
             analyzer.run(repositories)
         finally:
