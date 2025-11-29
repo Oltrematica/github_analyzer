@@ -192,6 +192,260 @@ class TestInteractiveProjectSelection:
         # Should read from file, not prompt
         assert result == ["PROJ", "DEV"]
 
+    def test_interactive_prompt_select_by_list_number(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: user selects 'L' and picks from list (FR-009a)."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+        assert not projects_file.exists()
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User selects 'L' then enters "1,3" (first and third project)
+                with mock.patch("builtins.input", side_effect=["L", "1,3"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        # Should return projects at indices 0 and 2 (1-indexed in UI)
+        assert result == ["PROJ", "OPS"]
+
+    def test_interactive_prompt_eof_on_choice(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: EOF on main choice returns empty list."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                with mock.patch("builtins.input", side_effect=EOFError):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == []
+
+    def test_interactive_prompt_eof_on_manual_input(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: EOF on manual input returns empty list."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User selects 'S', then EOF on manual input
+                with mock.patch("builtins.input", side_effect=["S", EOFError()]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == []
+
+    def test_interactive_prompt_eof_on_list_selection(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: EOF on list selection returns empty list."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User selects 'L', then EOF on list selection input
+                with mock.patch("builtins.input", side_effect=["L", EOFError()]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == []
+
+    def test_interactive_prompt_empty_manual_input_retries(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: empty manual input prompts again."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User selects 'S', enters empty, then valid input
+                with mock.patch("builtins.input", side_effect=["S", "", "S", "PROJ"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == ["PROJ"]
+
+    def test_interactive_prompt_invalid_keys_ignored(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: invalid project keys are ignored with warning."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User enters mix of valid and invalid keys
+                with mock.patch("builtins.input", side_effect=["S", "PROJ, INVALID, DEV"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        # Only valid keys returned
+        assert result == ["PROJ", "DEV"]
+
+    def test_interactive_prompt_all_invalid_keys_retries(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: all invalid keys prompts again."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User enters all invalid, then quits
+                with mock.patch("builtins.input", side_effect=["S", "INVALID, WRONG", "Q"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == []
+
+    def test_interactive_prompt_invalid_list_selection_retries(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: invalid list selection prompts again."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User enters invalid selection, then quits
+                with mock.patch("builtins.input", side_effect=["L", "invalid", "Q"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert result == []
+
+    def test_interactive_prompt_invalid_choice_retries(
+        self, tmp_path: Path, jira_env: dict, mock_projects: list
+    ) -> None:
+        """Interactive prompt: invalid choice prompts again."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = mock_projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                # User enters invalid choice 'X', then 'A'
+                with mock.patch("builtins.input", side_effect=["X", "A"]):
+                    result = select_jira_projects(
+                        str(projects_file),
+                        jira_config=JiraConfig.from_env(),
+                        interactive=True,
+                    )
+
+        assert len(result) == 3
+
+    def test_no_projects_in_jira_returns_empty(
+        self, tmp_path: Path, jira_env: dict
+    ) -> None:
+        """No projects found in Jira instance returns empty list."""
+        from src.github_analyzer.api import jira_client as jira_module
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        with mock.patch.object(jira_module, "JiraClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_projects.return_value = []  # No projects
+
+            with mock.patch.dict(os.environ, jira_env, clear=True):
+                result = select_jira_projects(
+                    str(projects_file),
+                    jira_config=JiraConfig.from_env(),
+                    interactive=True,
+                )
+
+        assert result == []
+
+    def test_no_jira_config_returns_empty(self, tmp_path: Path) -> None:
+        """No jira_config provided returns empty list."""
+        from src.github_analyzer.cli.main import select_jira_projects
+
+        projects_file = tmp_path / "jira_projects.txt"
+
+        result = select_jira_projects(
+            str(projects_file),
+            jira_config=None,  # No config
+            interactive=True,
+        )
+
+        assert result == []
+
     def test_file_with_projects_uses_file(
         self, tmp_path: Path, jira_env: dict, mock_projects: list
     ) -> None:

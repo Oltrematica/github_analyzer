@@ -810,3 +810,335 @@ class TestJiraIntegrationInCLI:
             reader = csv.DictReader(f)
             row = next(reader)
         assert row["reopen_count"] == "1"
+
+
+# =============================================================================
+# Tests for GitHub analyzer run in main()
+# =============================================================================
+
+
+class TestGitHubAnalyzerInMain:
+    """Tests for GitHub analyzer flow in main()."""
+
+    def test_github_analysis_full_flow(self, tmp_path):
+        """Test complete GitHub analysis flow in main()."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_analyzer = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "GITHUB_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="test", name="repo")]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer) as MockAnalyzer,
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        assert result == 0
+        # Verify analyzer was created and used
+        MockAnalyzer.assert_called_once()
+        mock_analyzer.run.assert_called_once()
+        mock_analyzer.close.assert_called_once()
+
+    def test_github_analysis_calls_close_on_success(self, tmp_path):
+        """Test GitHub analyzer close is called after successful run."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_analyzer = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer),
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            main()
+
+        # close should always be called via finally
+        mock_analyzer.close.assert_called_once()
+
+    def test_github_analysis_calls_close_on_exception(self, tmp_path):
+        """Test GitHub analyzer close is called even when run() raises."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_analyzer = Mock()
+        mock_analyzer.run.side_effect = RuntimeError("API failure")
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer),
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        # close should still be called via finally
+        mock_analyzer.close.assert_called_once()
+        # Should return error code for unexpected exception
+        assert result == 2
+
+
+# =============================================================================
+# Tests for error handling in main()
+# =============================================================================
+
+
+class TestMainErrorHandling:
+    """Tests for error handling in main()."""
+
+    def test_keyboard_interrupt_returns_130(self, tmp_path):
+        """Test KeyboardInterrupt returns exit code 130."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", side_effect=KeyboardInterrupt),
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        assert result == 130
+
+    def test_unexpected_exception_returns_2(self, tmp_path):
+        """Test unexpected exception returns exit code 2."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", side_effect=RuntimeError("Unexpected")),
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        assert result == 2
+
+    def test_configuration_error_returns_exit_code(self, tmp_path):
+        """Test ConfigurationError returns its exit code."""
+        from src.github_analyzer.core.exceptions import ConfigurationError
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+        ):
+            error = ConfigurationError("Missing config", "Details")
+            error.exit_code = 1
+            MockConfig.from_env.side_effect = error
+
+            result = main()
+
+        assert result == 1
+
+
+# =============================================================================
+# Tests for CLI argument overrides
+# =============================================================================
+
+
+class TestCLIArgumentOverrides:
+    """Tests for CLI argument overrides in main()."""
+
+    def test_output_argument_overrides_config(self, tmp_path):
+        """Test --output argument overrides config output_dir."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = "/default/output"
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        custom_output = str(tmp_path / "custom_output")
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30",
+                               "--full", "--output", custom_output]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            main()
+
+        # Config output_dir should be overridden
+        assert mock_config.output_dir == custom_output
+
+    def test_repos_argument_overrides_config(self, tmp_path):
+        """Test --repos argument overrides config repos_file."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.repos_file = "default_repos.txt"
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30",
+                               "--full", "--repos", "custom_repos.txt"]),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            main()
+
+        # Config repos_file should be overridden
+        assert mock_config.repos_file == "custom_repos.txt"
+
+    def test_auto_detect_sources_with_no_sources_returns_error(self, tmp_path):
+        """Test auto-detect with no available sources returns exit code 1."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "auto", "--quiet"]),
+            patch.dict(os.environ, {}, clear=True),  # No tokens
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "auto_detect_sources", return_value=set()),
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        assert result == 1
+
+    def test_interactive_prompts_when_no_cli_args(self, tmp_path):
+        """Test interactive prompts are used when CLI args not provided."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 7  # default
+        mock_config.verbose = True  # default
+        mock_config.validate = Mock()
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "github"]),  # No --quiet, --days, --full
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "prompt_int", return_value=14) as mock_prompt_int,
+            patch.object(main_module, "prompt_yes_no", side_effect=[False, True, True]) as mock_prompt_yn,
+            patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
+        ):
+            MockConfig.from_env.return_value = mock_config
+
+            result = main()
+
+        # prompt_int should be called for days
+        mock_prompt_int.assert_called_once()
+        # prompt_yes_no called: quiet mode, full PR details, start analysis
+        assert mock_prompt_yn.call_count == 3
+        assert result == 0
+
+    def test_many_jira_projects_shows_truncated_list(self, tmp_path):
+        """Test more than 5 Jira projects shows truncated list."""
+        from datetime import datetime, timezone
+
+        from src.github_analyzer.api.jira_client import JiraIssue
+
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_jira_config = Mock()
+        mock_jira_config.base_url = "https://test.atlassian.net"
+        mock_jira_config.jira_projects_file = "jira_projects.txt"
+
+        # 7 projects (more than 5)
+        project_keys = ["PROJ1", "PROJ2", "PROJ3", "PROJ4", "PROJ5", "PROJ6", "PROJ7"]
+
+        test_issue = JiraIssue(
+            key="PROJ1-1",
+            summary="Test",
+            description="Test",
+            status="Done",
+            issue_type="Task",
+            priority="Medium",
+            assignee="Test",
+            reporter="Test",
+            created=datetime(2025, 11, 1, tzinfo=timezone.utc),
+            updated=datetime(2025, 11, 1, tzinfo=timezone.utc),
+            resolution_date=datetime(2025, 11, 1, tzinfo=timezone.utc),
+            project_key="PROJ1",
+        )
+
+        mock_client = Mock()
+        mock_client.search_issues.return_value = iter([test_issue])
+        mock_client.get_comments.return_value = []
+        mock_client.get_issue_changelog.return_value = []
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "jira", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "JIRA_URL": "https://test.atlassian.net",
+                    "JIRA_EMAIL": "test@example.com",
+                    "JIRA_API_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "JiraConfig") as MockJiraConfig,
+            patch.object(main_module, "select_jira_projects", return_value=project_keys),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch("src.github_analyzer.api.jira_client.JiraClient", return_value=mock_client),
+        ):
+            MockConfig.from_env.return_value = mock_config
+            MockJiraConfig.from_env.return_value = mock_jira_config
+
+            result = main()
+
+        assert result == 0
