@@ -16,6 +16,17 @@ from src.github_analyzer.cli.main import (
     prompt_yes_no,
 )
 
+# Import new functions for Feature 005 (will be implemented)
+try:
+    from src.github_analyzer.cli.main import (
+        get_cutoff_date,
+        filter_by_activity,
+        display_activity_stats,
+    )
+    HAS_FEATURE_005 = True
+except ImportError:
+    HAS_FEATURE_005 = False
+
 # Get the actual module object
 main_module = sys.modules["src.github_analyzer.cli.main"]
 
@@ -1158,3 +1169,380 @@ class TestCLIArgumentOverrides:
             result = main()
 
         assert result == 0
+
+
+# =============================================================================
+# Tests for Feature 005: Smart Repository Filtering
+# =============================================================================
+
+
+class TestGetCutoffDate:
+    """Tests for get_cutoff_date function (T004 - Feature 005)."""
+
+    def test_calculates_cutoff_for_30_days(self):
+        """Test cutoff date calculation for 30 days."""
+        # Skip if function not yet implemented
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        result = get_cutoff_date(30)
+
+        expected = datetime.now(timezone.utc).date() - timedelta(days=30)
+        assert result == expected
+
+    def test_calculates_cutoff_for_7_days(self):
+        """Test cutoff date calculation for 7 days."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        result = get_cutoff_date(7)
+
+        expected = datetime.now(timezone.utc).date() - timedelta(days=7)
+        assert result == expected
+
+    def test_calculates_cutoff_for_365_days(self):
+        """Test cutoff date calculation for 365 days (1 year)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        result = get_cutoff_date(365)
+
+        expected = datetime.now(timezone.utc).date() - timedelta(days=365)
+        assert result == expected
+
+    def test_returns_date_object(self):
+        """Test that result is a date object (not datetime)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        from datetime import date
+
+        result = get_cutoff_date(30)
+
+        assert isinstance(result, date)
+
+    def test_handles_zero_days(self):
+        """Test cutoff for 0 days returns today."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        result = get_cutoff_date(0)
+
+        expected = datetime.now(timezone.utc).date()
+        assert result == expected
+
+
+class TestFilterByActivity:
+    """Tests for filter_by_activity function (T005 - Feature 005)."""
+
+    def test_filters_active_repos(self):
+        """Test filtering repos by pushed_at date."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+            {"full_name": "user/inactive", "pushed_at": "2025-10-01T10:00:00Z"},
+            {"full_name": "user/recent", "pushed_at": "2025-11-15T10:00:00Z"},
+        ]
+
+        # Filter for repos pushed after Nov 10, 2025
+        from datetime import date
+        cutoff = date(2025, 11, 10)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 2
+        assert result[0]["full_name"] == "user/active"
+        assert result[1]["full_name"] == "user/recent"
+
+    def test_returns_empty_for_all_inactive(self):
+        """Test returns empty list when no repos match."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/old1", "pushed_at": "2024-01-01T10:00:00Z"},
+            {"full_name": "user/old2", "pushed_at": "2024-06-15T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert result == []
+
+    def test_returns_all_for_all_active(self):
+        """Test returns all repos when all are active."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+            {"full_name": "user/repo2", "pushed_at": "2025-11-25T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 2
+
+    def test_handles_empty_repos_list(self):
+        """Test handles empty repos list gracefully."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity([], cutoff)
+
+        assert result == []
+
+    def test_includes_repos_pushed_on_cutoff_date(self):
+        """Test includes repos pushed exactly on cutoff date (inclusive boundary)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/on-cutoff", "pushed_at": "2025-11-01T10:00:00Z"},
+            {"full_name": "user/before", "pushed_at": "2025-10-31T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/on-cutoff"
+
+    def test_handles_missing_pushed_at_field(self):
+        """Test treats repos without pushed_at as inactive."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/no-pushed-at"},  # No pushed_at field
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
+    def test_handles_null_pushed_at_value(self):
+        """Test treats repos with null pushed_at as inactive."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/null-pushed", "pushed_at": None},
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
+    def test_preserves_original_repo_data(self):
+        """Test that filtering preserves all original repo fields."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {
+                "full_name": "user/repo1",
+                "pushed_at": "2025-11-28T10:00:00Z",
+                "private": True,
+                "description": "Test repo",
+                "stargazers_count": 42,
+            },
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        assert len(result) == 1
+        assert result[0]["private"] is True
+        assert result[0]["description"] == "Test repo"
+        assert result[0]["stargazers_count"] == 42
+
+    def test_handles_invalid_date_format(self):
+        """Test skips repos with invalid pushed_at date format (covers ValueError)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/invalid-date", "pushed_at": "not-a-date"},
+            {"full_name": "user/malformed", "pushed_at": "2025/11/28"},
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        # Only valid date should be included
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
+    def test_handles_pushed_at_as_non_string(self):
+        """Test skips repos where pushed_at is not a string (covers AttributeError)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/numeric-date", "pushed_at": 12345},
+            {"full_name": "user/list-date", "pushed_at": ["2025-11-28"]},
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        # Only valid string date should be included
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
+
+class TestDisplayActivityStats:
+    """Tests for display_activity_stats function (T006 - Feature 005)."""
+
+    def test_formats_stats_correctly(self, capsys):
+        """Test stats display format matches spec."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        display_activity_stats(total=135, active=28, days=30)
+
+        captured = capsys.readouterr()
+        assert "135 repos found, 28 with activity in last 30 days" in captured.out
+
+    def test_handles_zero_active(self, capsys):
+        """Test stats display with zero active repos."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        display_activity_stats(total=50, active=0, days=7)
+
+        captured = capsys.readouterr()
+        assert "50 repos found, 0 with activity in last 7 days" in captured.out
+
+    def test_handles_all_active(self, capsys):
+        """Test stats display when all repos are active."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        display_activity_stats(total=10, active=10, days=14)
+
+        captured = capsys.readouterr()
+        assert "10 repos found, 10 with activity in last 14 days" in captured.out
+
+
+class TestLoadGitHubReposFromFile:
+    """Tests for load_github_repos_from_file function."""
+
+    def test_loads_simple_repo_names(self, tmp_path):
+        """Test loading simple owner/repo format."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("owner/repo1\nowner/repo2\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_skips_comments_and_empty_lines(self, tmp_path):
+        """Test skipping comments and empty lines."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("# This is a comment\n\nowner/repo1\n# Another comment\nowner/repo2\n\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_extracts_repo_from_github_url(self, tmp_path):
+        """Test extracting owner/repo from full GitHub URLs."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("https://github.com/owner/repo1\nhttps://github.com/owner/repo2.git\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_handles_url_with_trailing_slash(self, tmp_path):
+        """Test URL with trailing slash."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("https://github.com/owner/repo1/\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1"]
+
+    def test_returns_empty_for_nonexistent_file(self, tmp_path):
+        """Test returns empty list when file doesn't exist."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        result = load_github_repos_from_file(str(tmp_path / "nonexistent.txt"))
+
+        assert result == []
+
+    def test_handles_short_url(self, tmp_path):
+        """Test URL that is too short to extract repo from."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        # URL with only one path segment
+        repos_file.write_text("http://github.com/owner\nowner/repo\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        # Should skip invalid URL and include valid repo
+        assert "owner/repo" in result
+
+    def test_handles_oserror(self, tmp_path, monkeypatch):
+        """Test handles OSError during file read (covers except OSError branch)."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        # Create a file that exists but will fail to read
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("owner/repo\n")
+
+        # Patch Path.read_text to raise OSError
+        from pathlib import Path
+        original_read_text = Path.read_text
+
+        def mock_read_text(self, *args, **kwargs):
+            if str(self).endswith("repos.txt"):
+                raise OSError("Permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", mock_read_text)
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == []

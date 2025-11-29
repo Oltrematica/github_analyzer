@@ -14,9 +14,9 @@ import argparse
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from src.github_analyzer.analyzers import (
     CommitAnalyzer,
@@ -458,6 +458,91 @@ def validate_org_name(org: str) -> bool:
     return bool(ORG_NAME_PATTERN.match(org))
 
 
+# =============================================================================
+# Feature 005: Smart Repository Filtering - Helper Functions
+# =============================================================================
+
+
+def get_cutoff_date(days: int) -> date:
+    """Calculate activity cutoff date from number of days (Feature 005 - T007).
+
+    Per spec FR-002: Filtering logic uses cutoff_date = today - days.
+    Repos with pushed_at >= cutoff_date are considered active.
+
+    Args:
+        days: Number of days to look back from today.
+
+    Returns:
+        date object representing the cutoff date (inclusive boundary).
+
+    Example:
+        >>> get_cutoff_date(30)  # If today is 2025-11-29
+        datetime.date(2025, 10, 30)
+    """
+    return datetime.now(timezone.utc).date() - timedelta(days=days)
+
+
+def filter_by_activity(repos: list[dict], cutoff: date) -> list[dict]:
+    """Filter repositories by pushed_at date (Feature 005 - T008).
+
+    Per spec FR-002: Filters repos where pushed_at >= cutoff_date.
+    Uses client-side filtering for personal repos (Search API user:
+    qualifier only returns owned repos, missing collaborator access).
+
+    Args:
+        repos: List of repository dicts with 'pushed_at' field
+               (ISO 8601 format: "2025-11-28T10:00:00Z").
+        cutoff: Cutoff date - repos pushed on or after this date are active.
+
+    Returns:
+        List of active repositories (pushed_at >= cutoff).
+        Repos without pushed_at or with null value are excluded.
+
+    Example:
+        >>> repos = [{"full_name": "user/repo", "pushed_at": "2025-11-28T10:00:00Z"}]
+        >>> filter_by_activity(repos, date(2025, 11, 1))
+        [{"full_name": "user/repo", "pushed_at": "2025-11-28T10:00:00Z"}]
+    """
+    active_repos = []
+
+    for repo in repos:
+        pushed_at_str = repo.get("pushed_at")
+        if not pushed_at_str:
+            # Skip repos without pushed_at (treat as inactive)
+            continue
+
+        try:
+            # Parse ISO 8601 timestamp (e.g., "2025-11-28T10:00:00Z")
+            pushed_at = datetime.fromisoformat(pushed_at_str.replace("Z", "+00:00"))
+            repo_date = pushed_at.date()
+
+            # Include if pushed_at >= cutoff (inclusive boundary per spec)
+            if repo_date >= cutoff:
+                active_repos.append(repo)
+        except (ValueError, AttributeError):
+            # Skip repos with invalid date format
+            continue
+
+    return active_repos
+
+
+def display_activity_stats(total: int, active: int, days: int) -> None:
+    """Display repository activity statistics (Feature 005 - T009).
+
+    Per spec FR-007: Display format is exactly:
+    "{total} repos found, {active} with activity in last {days} days"
+
+    Args:
+        total: Total number of repositories.
+        active: Number of active repositories (pushed in analysis period).
+        days: Number of days in the analysis period.
+
+    Example output:
+        135 repos found, 28 with activity in last 30 days
+    """
+    print(f"{total} repos found, {active} with activity in last {days} days")
+
+
 def format_repo_list(repos: list[dict]) -> str:
     """Format GitHub repositories for display.
 
@@ -534,7 +619,7 @@ def load_github_repos_from_file(repos_file: str) -> list[str]:
         return []
 
 
-def _handle_rate_limit(e: RateLimitError, log) -> None:
+def _handle_rate_limit(e: RateLimitError, log: Callable[[str, str], None]) -> None:
     """Handle rate limit error with wait time display (FR-008, T049).
 
     Per spec Edge Cases: Show wait time to user.
@@ -551,19 +636,87 @@ def _handle_rate_limit(e: RateLimitError, log) -> None:
         log("Rate limit exceeded. Please try again later.", "warning")
 
 
+def _handle_zero_active_repos(
+    repos: list[dict],
+    days: int,
+    total_count: int,
+) -> tuple[list[dict] | None, int | None, bool]:
+    """Handle zero active repositories scenario with options (FR-009).
+
+    Per spec Edge Case #1 and FR-009: When no repos have activity in the
+    analysis period, offer user three options:
+    [1] Include all repos - proceed with unfiltered repos
+    [2] Adjust timeframe - prompt for new days value and refilter
+    [3] Cancel - return to menu
+
+    Args:
+        repos: Full list of repositories (unfiltered).
+        days: Current timeframe in days.
+        total_count: Total number of repos for display.
+
+    Returns:
+        Tuple of (active_repos, new_days, should_exit):
+        - (repos, days, False): Use all repos with current days (option 1)
+        - (filtered_repos, new_days, False): Refiltered repos with new timeframe (option 2)
+        - (None, None, False): User cancelled (option 3) - return to menu
+        - (None, None, True): EOF/KeyboardInterrupt - exit completely
+    """
+    print(f"⚠️ No repositories have been pushed to in the last {days} days.")
+    print("Options:")
+    print(f"  [1] Include all {total_count} repositories anyway")
+    print(f"  [2] Adjust timeframe (currently {days} days)")
+    print("  [3] Cancel")
+
+    try:
+        zero_choice = input("\nYour choice: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return None, None, True  # Exit completely
+
+    if zero_choice == "1":
+        # Include all repos
+        return repos, days, False
+    elif zero_choice == "2":
+        # Adjust timeframe
+        try:
+            new_days_input = input("Enter new timeframe in days: ").strip()
+            new_days = int(new_days_input)
+            if new_days <= 0:
+                print("Invalid number of days. Must be positive.")
+                return None, None, False  # Return to menu
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return None, None, False  # Return to menu
+        except (EOFError, KeyboardInterrupt):
+            return None, None, True  # Exit completely
+
+        # Refilter with new timeframe
+        print("\nRechecking...")
+        new_cutoff = get_cutoff_date(new_days)
+        new_active = filter_by_activity(repos, new_cutoff)
+        display_activity_stats(total=total_count, active=len(new_active), days=new_days)
+
+        return new_active, new_days, False
+    else:
+        # Cancel (option 3 or any other input)
+        return None, None, False  # Return to menu
+
+
 def select_github_repos(
     repos_file: str,
     github_token: str,
     interactive: bool = True,
     output: TerminalOutput | None = None,
+    days: int = 30,
 ) -> list[str]:
-    """Select GitHub repositories from file or interactively (Feature 004).
+    """Select GitHub repositories from file or interactively (Feature 004 + 005).
 
-    Per spec FR-001 to FR-014:
+    Per spec FR-001 to FR-014 (Feature 004) and Feature 005 Smart Filtering:
     - Display interactive menu when repos.txt is missing or empty
     - Options: [A] All personal, [S] Specify manually, [O] Organization,
                [L] Select from list, [Q] Quit/Skip
-    - Follow select_jira_projects pattern for UX consistency (FR-003)
+    - Apply activity filtering for [A], [L], [O] options (Feature 005)
+    - Display activity statistics per FR-007
+    - Confirmation prompt with [Y/n/all] per FR-006
 
     Args:
         repos_file: Path to repos.txt file.
@@ -571,6 +724,7 @@ def select_github_repos(
         interactive: If True, prompt user when file is missing/empty.
                     If False (--quiet mode), skip prompts per FR-013.
         output: Optional TerminalOutput for consistent logging.
+        days: Analysis period in days for activity filtering (default 30).
 
     Returns:
         List of repository names (owner/repo format) to analyze.
@@ -615,15 +769,52 @@ def select_github_repos(
                 return []
 
             if choice == "A":
-                # FR-005: List all user repos
+                # FR-005: List all user repos with activity filtering (Feature 005)
                 log("Fetching your repositories...", "info")
                 try:
                     repos = client.list_user_repos()
                     if not repos:
                         log("No repositories found for your account.", "warning")
                         continue
-                    repo_names = [r["full_name"] for r in repos]
-                    log(f"Using all {len(repo_names)} repositories.", "success")
+
+                    # Feature 005: Apply activity filtering
+                    cutoff = get_cutoff_date(days)
+                    active_repos = filter_by_activity(repos, cutoff)
+
+                    # Display activity statistics (FR-007)
+                    display_activity_stats(total=len(repos), active=len(active_repos), days=days)
+
+                    # Handle zero active repos (FR-009)
+                    current_days = days
+                    if not active_repos:
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            repos, current_days, len(repos)
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
+
+                    # Confirmation prompt (FR-006)
+                    try:
+                        confirm = input(f"Proceed with {len(active_repos)} active repositories? [Y/n/all]: ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        log("GitHub analysis skipped.", "warning")
+                        return []
+
+                    if confirm == "n":
+                        continue  # Return to menu
+                    elif confirm == "all":
+                        # Use all repos (bypass filter)
+                        repo_names = [r["full_name"] for r in repos]
+                    else:
+                        # Default (Y or Enter): use active repos only
+                        repo_names = [r["full_name"] for r in active_repos]
+
+                    log(f"Using {len(repo_names)} repositories.", "success")
                     return repo_names
                 except RateLimitError as e:
                     _handle_rate_limit(e, log)
@@ -659,7 +850,7 @@ def select_github_repos(
                     log("No valid repository names entered. Try again.", "warning")
 
             elif choice == "O":
-                # FR-006: Organization repos
+                # FR-006: Organization repos with Search API filtering (Feature 005)
                 try:
                     org_name = input("Enter organization name: ").strip()
                 except (EOFError, KeyboardInterrupt):
@@ -672,14 +863,62 @@ def select_github_repos(
 
                 log(f"Fetching repositories for organization '{org_name}'...", "info")
                 try:
-                    repos = client.list_org_repos(org_name)
-                    if not repos:
+                    # Feature 005: Use Search API for efficient org filtering
+                    cutoff = get_cutoff_date(days)
+                    cutoff_str = cutoff.isoformat()
+
+                    # Get total org repos count for stats
+                    all_org_repos = client.list_org_repos(org_name)
+                    total_count = len(all_org_repos)
+
+                    if total_count == 0:
                         log(f"No repositories found in organization '{org_name}'.", "warning")
                         continue
 
-                    # Show list and allow selection
-                    log(f"Found {len(repos)} repositories:", "info")
-                    print(format_repo_list(repos))
+                    # Get active repos via Search API
+                    search_result = client.search_active_org_repos(org_name, cutoff_str)
+                    active_repos = search_result.get("items", [])
+                    incomplete = search_result.get("incomplete_results", False)
+
+                    # Display activity statistics (FR-007)
+                    display_activity_stats(total=total_count, active=len(active_repos), days=days)
+
+                    # Warn if results may be incomplete
+                    if incomplete:
+                        print("⚠️ Results may be incomplete due to API limitations.")
+
+                    # Handle zero active repos (FR-009)
+                    current_days = days
+                    if not active_repos:
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            all_org_repos, current_days, total_count
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
+
+                    # Confirmation prompt (FR-006)
+                    try:
+                        confirm = input(f"Show {len(active_repos)} active repositories for selection? [Y/n/all]: ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        log("GitHub analysis skipped.", "warning")
+                        return []
+
+                    if confirm == "n":
+                        continue  # Return to menu
+                    elif confirm == "all":
+                        # Show all repos (bypass filter)
+                        display_repos = all_org_repos
+                    else:
+                        # Default (Y or Enter): show active repos only
+                        display_repos = active_repos
+
+                    log(f"Showing {len(display_repos)} repositories:", "info")
+                    print(format_repo_list(display_repos))
 
                     # Ask for selection
                     try:
@@ -688,16 +927,31 @@ def select_github_repos(
                         log("GitHub analysis skipped.", "warning")
                         return []
 
-                    indices = parse_project_selection(selection_input, len(repos))
+                    indices = parse_project_selection(selection_input, len(display_repos))
                     if indices:
-                        selected = [repos[i]["full_name"] for i in indices]
+                        selected = [display_repos[i]["full_name"] for i in indices]
                         log(f"Selected {len(selected)} repositories.", "success")
                         return selected
                     else:
                         log("Invalid selection.", "warning")
 
                 except RateLimitError as e:
+                    # Feature 005 FR-008: Fallback to unfiltered mode on rate limit
                     _handle_rate_limit(e, log)
+                    log("Showing all repositories without activity filter.", "info")
+                    try:
+                        all_org_repos = client.list_org_repos(org_name)
+                        if all_org_repos:
+                            log(f"Showing {len(all_org_repos)} repositories (unfiltered):", "info")
+                            print(format_repo_list(all_org_repos))
+                            selection_input = input("\nSelect (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
+                            indices = parse_project_selection(selection_input, len(all_org_repos))
+                            if indices:
+                                selected = [all_org_repos[i]["full_name"] for i in indices]
+                                log(f"Selected {len(selected)} repositories.", "success")
+                                return selected
+                    except (EOFError, KeyboardInterrupt, GitHubAnalyzerError):
+                        pass
                     continue
                 except GitHubAnalyzerError as e:
                     if "404" in str(e):
@@ -707,7 +961,7 @@ def select_github_repos(
                     continue
 
             elif choice == "L":
-                # FR-010: Select from personal list
+                # FR-010: Select from personal list with activity filtering (Feature 005)
                 log("Fetching your repositories...", "info")
                 try:
                     repos = client.list_user_repos()
@@ -715,8 +969,45 @@ def select_github_repos(
                         log("No repositories found for your account.", "warning")
                         continue
 
-                    log(f"Found {len(repos)} repositories:", "info")
-                    print(format_repo_list(repos))
+                    # Feature 005: Apply activity filtering
+                    cutoff = get_cutoff_date(days)
+                    active_repos = filter_by_activity(repos, cutoff)
+
+                    # Display activity statistics (FR-007)
+                    display_activity_stats(total=len(repos), active=len(active_repos), days=days)
+
+                    # Handle zero active repos (FR-009)
+                    current_days = days
+                    if not active_repos:
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            repos, current_days, len(repos)
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
+
+                    # Confirmation prompt (FR-006) - ask before showing list
+                    try:
+                        confirm = input(f"Show {len(active_repos)} active repositories for selection? [Y/n/all]: ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        log("GitHub analysis skipped.", "warning")
+                        return []
+
+                    if confirm == "n":
+                        continue  # Return to menu
+                    elif confirm == "all":
+                        # Show all repos (bypass filter)
+                        display_repos = repos
+                    else:
+                        # Default (Y or Enter): show active repos only
+                        display_repos = active_repos
+
+                    log(f"Showing {len(display_repos)} repositories:", "info")
+                    print(format_repo_list(display_repos))
 
                     try:
                         selection_input = input("\nSelect (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
@@ -724,9 +1015,9 @@ def select_github_repos(
                         log("GitHub analysis skipped.", "warning")
                         return []
 
-                    indices = parse_project_selection(selection_input, len(repos))
+                    indices = parse_project_selection(selection_input, len(display_repos))
                     if indices:
-                        selected = [repos[i]["full_name"] for i in indices]
+                        selected = [display_repos[i]["full_name"] for i in indices]
                         log(f"Selected {len(selected)} repositories.", "success")
                         return selected
                     else:
@@ -998,14 +1289,16 @@ def main() -> int:
         # Load GitHub repositories if GitHub source is enabled
         repositories: list[Repository] = []
         if DataSource.GITHUB in sources:
-            # Use interactive selection (Feature 004)
+            # Use interactive selection (Feature 004 + 005)
             # select_github_repos handles: file loading, empty/missing file prompts
+            # Feature 005: Pass days parameter for activity filtering
             interactive = not args.quiet if hasattr(args, "quiet") else True
             repo_names = select_github_repos(
                 repos_file=config.repos_file,
                 github_token=config.github_token,
                 interactive=interactive,
                 output=output,
+                days=config.days,  # Feature 005: Activity filtering period
             )
 
             # Convert string names to Repository objects
