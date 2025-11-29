@@ -1381,6 +1381,46 @@ class TestFilterByActivity:
         assert result[0]["description"] == "Test repo"
         assert result[0]["stargazers_count"] == 42
 
+    def test_handles_invalid_date_format(self):
+        """Test skips repos with invalid pushed_at date format (covers ValueError)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/invalid-date", "pushed_at": "not-a-date"},
+            {"full_name": "user/malformed", "pushed_at": "2025/11/28"},
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        # Only valid date should be included
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
+    def test_handles_pushed_at_as_non_string(self):
+        """Test skips repos where pushed_at is not a string (covers AttributeError)."""
+        if not HAS_FEATURE_005:
+            pytest.skip("Feature 005 not yet implemented")
+
+        repos = [
+            {"full_name": "user/numeric-date", "pushed_at": 12345},
+            {"full_name": "user/list-date", "pushed_at": ["2025-11-28"]},
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        from datetime import date
+        cutoff = date(2025, 11, 1)
+
+        result = filter_by_activity(repos, cutoff)
+
+        # Only valid string date should be included
+        assert len(result) == 1
+        assert result[0]["full_name"] == "user/active"
+
 
 class TestDisplayActivityStats:
     """Tests for display_activity_stats function (T006 - Feature 005)."""
@@ -1414,3 +1454,95 @@ class TestDisplayActivityStats:
 
         captured = capsys.readouterr()
         assert "10 repos found, 10 with activity in last 14 days" in captured.out
+
+
+class TestLoadGitHubReposFromFile:
+    """Tests for load_github_repos_from_file function."""
+
+    def test_loads_simple_repo_names(self, tmp_path):
+        """Test loading simple owner/repo format."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("owner/repo1\nowner/repo2\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_skips_comments_and_empty_lines(self, tmp_path):
+        """Test skipping comments and empty lines."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("# This is a comment\n\nowner/repo1\n# Another comment\nowner/repo2\n\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_extracts_repo_from_github_url(self, tmp_path):
+        """Test extracting owner/repo from full GitHub URLs."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("https://github.com/owner/repo1\nhttps://github.com/owner/repo2.git\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1", "owner/repo2"]
+
+    def test_handles_url_with_trailing_slash(self, tmp_path):
+        """Test URL with trailing slash."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("https://github.com/owner/repo1/\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == ["owner/repo1"]
+
+    def test_returns_empty_for_nonexistent_file(self, tmp_path):
+        """Test returns empty list when file doesn't exist."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        result = load_github_repos_from_file(str(tmp_path / "nonexistent.txt"))
+
+        assert result == []
+
+    def test_handles_short_url(self, tmp_path):
+        """Test URL that is too short to extract repo from."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        repos_file = tmp_path / "repos.txt"
+        # URL with only one path segment
+        repos_file.write_text("http://github.com/owner\nowner/repo\n")
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        # Should skip invalid URL and include valid repo
+        assert "owner/repo" in result
+
+    def test_handles_oserror(self, tmp_path, monkeypatch):
+        """Test handles OSError during file read (covers except OSError branch)."""
+        from src.github_analyzer.cli.main import load_github_repos_from_file
+
+        # Create a file that exists but will fail to read
+        repos_file = tmp_path / "repos.txt"
+        repos_file.write_text("owner/repo\n")
+
+        # Patch Path.read_text to raise OSError
+        from pathlib import Path
+        original_read_text = Path.read_text
+
+        def mock_read_text(self, *args, **kwargs):
+            if str(self).endswith("repos.txt"):
+                raise OSError("Permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", mock_read_text)
+
+        result = load_github_repos_from_file(str(repos_file))
+
+        assert result == []
