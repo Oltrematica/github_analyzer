@@ -37,9 +37,10 @@ TOKEN_PATTERNS = [
 
 # Repository name validation
 # GitHub allows: alphanumeric, hyphen, underscore, period
+# Names can start with alphanumeric or period (e.g., .github, .dotfiles)
 # Max 100 characters per component
-REPO_COMPONENT_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"
-REPO_FULL_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}/[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"
+REPO_COMPONENT_PATTERN = r"^[a-zA-Z0-9.][a-zA-Z0-9._-]{0,99}$"
+REPO_FULL_PATTERN = r"^[a-zA-Z0-9.][a-zA-Z0-9._-]{0,99}/[a-zA-Z0-9.][a-zA-Z0-9._-]{0,99}$"
 
 # Dangerous characters that could indicate injection attempts
 DANGEROUS_CHARS = set(";|&$`(){}[]<>\\'\"\n\r\t")
@@ -207,7 +208,7 @@ class Repository:
         if not re.match(REPO_COMPONENT_PATTERN, owner):
             raise ValidationError(
                 "Invalid repository owner format",
-                details="Owner must start with alphanumeric and contain only alphanumeric, hyphen, underscore, or period",
+                details="Owner must start with alphanumeric or period and contain only alphanumeric, hyphen, underscore, or period",
             )
 
         # Validate name
@@ -216,7 +217,7 @@ class Repository:
         if not re.match(REPO_COMPONENT_PATTERN, name):
             raise ValidationError(
                 "Invalid repository name format",
-                details="Name must start with alphanumeric and contain only alphanumeric, hyphen, underscore, or period",
+                details="Name must start with alphanumeric or period and contain only alphanumeric, hyphen, underscore, or period",
             )
 
         # Check for path traversal

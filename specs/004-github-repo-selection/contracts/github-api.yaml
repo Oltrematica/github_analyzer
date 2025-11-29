@@ -1,0 +1,189 @@
+# GitHub API Contract for Repository Listing
+# Feature: 004-github-repo-selection
+# These are the external GitHub API endpoints used by this feature
+
+openapi: 3.0.3
+info:
+  title: GitHub API - Repository Endpoints (Subset)
+  version: 2022-11-28
+  description: |
+    External API contracts for GitHub repository listing.
+    This documents the subset of GitHub REST API used by the
+    interactive repository selection feature.
+
+paths:
+  /user/repos:
+    get:
+      operationId: listUserRepos
+      summary: List repositories for the authenticated user
+      description: |
+        Lists repositories that the authenticated user has explicit permission
+        to access. Used for FR-005 (personal repository listing).
+      parameters:
+        - name: affiliation
+          in: query
+          description: |
+            Comma-separated list of values. Can include: owner, collaborator,
+            organization_member. Feature uses "owner,collaborator" per spec clarification.
+          schema:
+            type: string
+            default: "owner,collaborator,organization_member"
+          example: "owner,collaborator"
+        - name: visibility
+          in: query
+          description: Filter by visibility
+          schema:
+            type: string
+            enum: [all, public, private]
+            default: all
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created, updated, pushed, full_name]
+            default: full_name
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: List of repositories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Repository'
+        '401':
+          description: Authentication required
+        '403':
+          description: Rate limit exceeded or insufficient permissions
+
+  /orgs/{org}/repos:
+    get:
+      operationId: listOrgRepos
+      summary: List organization repositories
+      description: |
+        Lists repositories for the specified organization. Used for FR-006.
+      parameters:
+        - name: org
+          in: path
+          required: true
+          description: The organization name (case-insensitive)
+          schema:
+            type: string
+            pattern: "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$"
+        - name: type
+          in: query
+          description: Repository type filter
+          schema:
+            type: string
+            enum: [all, public, private, forks, sources, member]
+            default: all
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created, updated, pushed, full_name]
+            default: created
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: List of repositories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Repository'
+        '404':
+          description: Organization not found
+
+components:
+  schemas:
+    Repository:
+      type: object
+      description: GitHub repository (minimal fields used by feature)
+      required:
+        - id
+        - full_name
+        - name
+        - owner
+        - private
+        - fork
+      properties:
+        id:
+          type: integer
+          description: Unique repository ID
+        full_name:
+          type: string
+          description: Full repository name (owner/repo)
+          example: "octocat/Hello-World"
+        name:
+          type: string
+          description: Repository name
+          example: "Hello-World"
+        owner:
+          $ref: '#/components/schemas/Owner'
+        description:
+          type: string
+          nullable: true
+          description: Repository description
+        private:
+          type: boolean
+          description: Whether repository is private
+        fork:
+          type: boolean
+          description: Whether repository is a fork
+        html_url:
+          type: string
+          format: uri
+          description: GitHub URL for repository
+
+    Owner:
+      type: object
+      required:
+        - login
+      properties:
+        login:
+          type: string
+          description: Owner username/org name
+          example: "octocat"
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [User, Organization]

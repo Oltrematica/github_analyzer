@@ -427,6 +427,7 @@ class TestMain:
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = str(tmp_path)
         mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = True
         mock_config.validate = Mock()
@@ -436,7 +437,7 @@ class TestMain:
             patch("sys.argv", ["prog", "--days", "7", "--quiet", "--full", "--sources", "github"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test1234567890123456789012"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[]),
+            patch.object(main_module, "select_github_repos", return_value=[]),
             patch.object(main_module, "prompt_yes_no", return_value=False),
         ):
             MockConfig.from_env.return_value = mock_config
@@ -824,6 +825,8 @@ class TestGitHubAnalyzerInMain:
         """Test complete GitHub analysis flow in main()."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -840,7 +843,7 @@ class TestGitHubAnalyzerInMain:
                 clear=True,
             ),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="test", name="repo")]),
+            patch.object(main_module, "select_github_repos", return_value=["test/repo"]),
             patch.object(main_module, "prompt_yes_no", return_value=True),
             patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer) as MockAnalyzer,
         ):
@@ -858,6 +861,8 @@ class TestGitHubAnalyzerInMain:
         """Test GitHub analyzer close is called after successful run."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -868,7 +873,7 @@ class TestGitHubAnalyzerInMain:
             patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "select_github_repos", return_value=["o/r"]),
             patch.object(main_module, "prompt_yes_no", return_value=True),
             patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer),
         ):
@@ -883,6 +888,8 @@ class TestGitHubAnalyzerInMain:
         """Test GitHub analyzer close is called even when run() raises."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -894,7 +901,7 @@ class TestGitHubAnalyzerInMain:
             patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "select_github_repos", return_value=["o/r"]),
             patch.object(main_module, "prompt_yes_no", return_value=True),
             patch.object(main_module, "GitHubAnalyzer", return_value=mock_analyzer),
         ):
@@ -920,6 +927,8 @@ class TestMainErrorHandling:
         """Test KeyboardInterrupt returns exit code 130."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -928,7 +937,7 @@ class TestMainErrorHandling:
             patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", side_effect=KeyboardInterrupt),
+            patch.object(main_module, "select_github_repos", side_effect=KeyboardInterrupt),
         ):
             MockConfig.from_env.return_value = mock_config
 
@@ -940,6 +949,8 @@ class TestMainErrorHandling:
         """Test unexpected exception returns exit code 2."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -948,7 +959,7 @@ class TestMainErrorHandling:
             patch("sys.argv", ["prog", "--sources", "github", "--quiet", "--days", "30", "--full"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", side_effect=RuntimeError("Unexpected")),
+            patch.object(main_module, "select_github_repos", side_effect=RuntimeError("Unexpected")),
         ):
             MockConfig.from_env.return_value = mock_config
 
@@ -986,6 +997,8 @@ class TestCLIArgumentOverrides:
         """Test --output argument overrides config output_dir."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = "/default/output"
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -997,7 +1010,7 @@ class TestCLIArgumentOverrides:
                                "--full", "--output", custom_output]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "select_github_repos", return_value=["o/r"]),
             patch.object(main_module, "prompt_yes_no", return_value=True),
             patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
         ):
@@ -1013,6 +1026,7 @@ class TestCLIArgumentOverrides:
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
         mock_config.repos_file = "default_repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 30
         mock_config.verbose = False
         mock_config.validate = Mock()
@@ -1022,7 +1036,7 @@ class TestCLIArgumentOverrides:
                                "--full", "--repos", "custom_repos.txt"]),
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "select_github_repos", return_value=["o/r"]),
             patch.object(main_module, "prompt_yes_no", return_value=True),
             patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
         ):
@@ -1057,6 +1071,8 @@ class TestCLIArgumentOverrides:
         """Test interactive prompts are used when CLI args not provided."""
         mock_config = Mock(spec=AnalyzerConfig)
         mock_config.output_dir = tmp_path
+        mock_config.repos_file = "repos.txt"
+        mock_config.github_token = "test_token"
         mock_config.days = 7  # default
         mock_config.verbose = True  # default
         mock_config.validate = Mock()
@@ -1065,7 +1081,7 @@ class TestCLIArgumentOverrides:
             patch("sys.argv", ["prog", "--sources", "github"]),  # No --quiet, --days, --full
             patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}, clear=True),
             patch.object(main_module, "AnalyzerConfig") as MockConfig,
-            patch.object(main_module, "load_repositories", return_value=[Repository(owner="o", name="r")]),
+            patch.object(main_module, "select_github_repos", return_value=["o/r"]),
             patch.object(main_module, "prompt_int", return_value=14) as mock_prompt_int,
             patch.object(main_module, "prompt_yes_no", side_effect=[False, True, True]) as mock_prompt_yn,
             patch.object(main_module, "GitHubAnalyzer") as MockAnalyzer,
