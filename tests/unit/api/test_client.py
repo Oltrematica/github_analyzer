@@ -893,6 +893,76 @@ class TestGitHubClientSearchRepos:
 
             assert result["incomplete_results"] is True
 
+    def test_search_repos_handles_none_response(self, mock_config):
+        """Test search_repos handles None response from API."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (None, {})
+
+            result = client.search_repos("org:test")
+
+            # Should return empty result when API returns None
+            assert result["total_count"] == 0
+            assert result["items"] == []
+            assert result["incomplete_results"] is False
+
+    def test_search_repos_handles_non_dict_response(self, mock_config):
+        """Test search_repos handles non-dict response from API."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            # Return a list instead of dict
+            mock_request.return_value = (["invalid", "response"], {})
+
+            result = client.search_repos("org:test")
+
+            # Should return empty result when response is not a dict
+            assert result["total_count"] == 0
+            assert result["items"] == []
+
+
+class TestGitHubClientSearchActiveOrgRepos:
+    """Tests for search_active_org_repos method (T024 - Feature 005)."""
+
+    def test_search_active_org_repos_builds_correct_query(self, mock_config):
+        """Test search_active_org_repos builds correct query format."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {
+            "total_count": 5,
+            "incomplete_results": False,
+            "items": [{"id": i} for i in range(5)]
+        }
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            result = client.search_active_org_repos("github", "2025-10-30")
+
+            # Verify correct query format
+            call_args = mock_request.call_args
+            params = call_args[0][1] if len(call_args[0]) > 1 else {}
+            assert params.get("q") == "org:github+pushed:>2025-10-30"
+
+            assert result["total_count"] == 5
+            assert len(result["items"]) == 5
+
+    def test_search_active_org_repos_passes_per_page(self, mock_config):
+        """Test search_active_org_repos passes per_page parameter."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {"total_count": 0, "incomplete_results": False, "items": []}
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            client.search_active_org_repos("testorg", "2025-11-01", per_page=50)
+
+            call_args = mock_request.call_args
+            params = call_args[0][1] if len(call_args[0]) > 1 else {}
+            assert params.get("per_page") == 50
+
 
 class TestGitHubClientListOrgRepos:
     """Tests for list_org_repos method (T004)."""

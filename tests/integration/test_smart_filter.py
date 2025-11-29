@@ -428,6 +428,105 @@ class TestZeroActiveReposWarning:
         captured = capsys.readouterr()
         assert "⚠️ No repositories" in captured.out
 
+    def test_zero_active_repos_include_all_option(self, tmp_path):
+        """Test zero active repos with option 1 (include all) in select_github_repos."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        # All repos are old (no active repos)
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+            {"full_name": "user/old2", "pushed_at": "2020-06-15T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then "1" to include all, then "Y" to confirm
+            patch("builtins.input", side_effect=["A", "1", "Y"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        # Should include all repos when user selects "1"
+        assert len(result) == 2
+        assert "user/old1" in result
+        assert "user/old2" in result
+
+    def test_zero_active_repos_cancel_option(self, tmp_path):
+        """Test zero active repos with option 2 (cancel) returns to menu."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then "2" to cancel, then Q to quit
+            patch("builtins.input", side_effect=["A", "2", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        # Should return empty list after cancel and quit
+        assert result == []
+
+    def test_zero_active_repos_eof_on_choice(self, tmp_path):
+        """Test EOF on zero repos choice returns empty list."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then EOF on zero repos choice
+            patch("builtins.input", side_effect=["A", EOFError()]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
 
 class TestSearchAPIRateLimitFallback:
     """T035: Test Search API rate limit fallback to unfiltered (FR-008)."""
@@ -447,6 +546,112 @@ class TestSearchAPIRateLimitFallback:
         captured = capsys.readouterr()
         assert "rate limit exceeded" in captured.out.lower()
         assert "without activity filter" in captured.out.lower()
+
+    def test_rate_limit_error_in_option_a(self, tmp_path):
+        """Test RateLimitError handling in option A."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+        from src.github_analyzer.core.exceptions import RateLimitError
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.side_effect = RateLimitError(
+            "Rate limit exceeded", reset_time=9999999999
+        )
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A triggers rate limit, then Q to quit
+            patch("builtins.input", side_effect=["A", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_github_analyzer_error_in_option_a(self, tmp_path):
+        """Test GitHubAnalyzerError handling in option A."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+        from src.github_analyzer.core.exceptions import APIError
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.side_effect = APIError(
+            "Network error", details="Connection refused"
+        )
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A triggers error, then Q to quit
+            patch("builtins.input", side_effect=["A", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+
+class TestHandleRateLimitFunction:
+    """Tests for _handle_rate_limit helper function."""
+
+    def test_handle_rate_limit_with_reset_time(self, capsys):
+        """Test _handle_rate_limit displays wait time when reset_time is set."""
+        import time
+
+        from src.github_analyzer.cli.main import _handle_rate_limit
+        from src.github_analyzer.core.exceptions import RateLimitError
+
+        # Create rate limit error with future reset time
+        future_time = int(time.time()) + 60  # 60 seconds in future
+        error = RateLimitError("Rate limit", reset_time=future_time)
+
+        log_messages = []
+
+        def mock_log(msg: str, level: str) -> None:
+            log_messages.append((msg, level))
+
+        _handle_rate_limit(error, mock_log)
+
+        assert len(log_messages) == 1
+        assert "Rate limit exceeded" in log_messages[0][0]
+        assert "seconds" in log_messages[0][0]
+        assert log_messages[0][1] == "warning"
+
+    def test_handle_rate_limit_without_reset_time(self, capsys):
+        """Test _handle_rate_limit handles missing reset_time."""
+        from src.github_analyzer.cli.main import _handle_rate_limit
+        from src.github_analyzer.core.exceptions import RateLimitError
+
+        error = RateLimitError("Rate limit", reset_time=None)
+
+        log_messages = []
+
+        def mock_log(msg: str, level: str) -> None:
+            log_messages.append((msg, level))
+
+        _handle_rate_limit(error, mock_log)
+
+        assert len(log_messages) == 1
+        assert "Rate limit exceeded" in log_messages[0][0]
+        assert "try again later" in log_messages[0][0]
+        assert log_messages[0][1] == "warning"
 
 
 class TestIncompleteResultsWarning:
@@ -470,3 +675,292 @@ class TestIncompleteResultsWarning:
         captured = capsys.readouterr()
         assert "incomplete" in captured.out.lower()
         assert "API limitations" in captured.out
+
+
+class TestConfirmationPromptEdgeCases:
+    """Tests for confirmation prompt edge cases."""
+
+    def test_confirm_prompt_n_returns_to_menu(self, tmp_path):
+        """Test 'n' response returns to menu."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        repos = [
+            {"full_name": "user/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then "n" to cancel, then Q to quit
+            patch("builtins.input", side_effect=["A", "n", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_confirm_prompt_eof_returns_empty(self, tmp_path):
+        """Test EOF on confirmation prompt returns empty list."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        repos = [
+            {"full_name": "user/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then EOF on confirm prompt
+            patch("builtins.input", side_effect=["A", EOFError()]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_confirm_prompt_all_bypasses_filter(self, tmp_path):
+        """Test 'all' response bypasses activity filter."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        # Mix of active and inactive repos
+        repos = [
+            {"full_name": "user/active", "pushed_at": "2025-11-28T10:00:00Z"},
+            {"full_name": "user/inactive", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, then "all" to include inactive repos
+            patch("builtins.input", side_effect=["A", "all"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        # Should include both active and inactive repos
+        assert len(result) == 2
+        assert "user/active" in result
+        assert "user/inactive" in result
+
+
+class TestOptionOEdgeCases:
+    """Tests for Option O edge cases."""
+
+    def test_option_o_zero_repos_in_org(self, tmp_path):
+        """Test Option O with zero repos in organization."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_org_repos.return_value = []  # No repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option O, enter org name, then Q to quit
+            patch("builtins.input", side_effect=["O", "emptyorg", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_option_o_rate_limit_fallback(self, tmp_path):
+        """Test Option O rate limit fallback to unfiltered mode."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+        from src.github_analyzer.core.exceptions import RateLimitError
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        org_repos = [
+            {"full_name": "org/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+            {"full_name": "org/repo2", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_org_repos.return_value = org_repos
+        mock_client.search_active_org_repos.side_effect = RateLimitError("Rate limit")
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option O, enter org name, rate limit triggers fallback, select all
+            patch("builtins.input", side_effect=["O", "myorg", "all"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        # Should return all repos via fallback
+        assert len(result) == 2
+
+    def test_option_o_404_error(self, tmp_path):
+        """Test Option O with 404 error (org not found)."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+        from src.github_analyzer.core.exceptions import APIError
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_org_repos.side_effect = APIError(
+            "Not found: 404", status_code=404
+        )
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option O, enter org name, 404 error, then Q
+            patch("builtins.input", side_effect=["O", "nonexistent", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_option_o_eof_on_org_name(self, tmp_path):
+        """Test Option O with EOF on org name input."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option O, then EOF on org name
+            patch("builtins.input", side_effect=["O", EOFError()]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+
+class TestOptionLEdgeCases:
+    """Tests for Option L edge cases."""
+
+    def test_option_l_rate_limit_error(self, tmp_path):
+        """Test Option L with rate limit error."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+        from src.github_analyzer.core.exceptions import RateLimitError
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.side_effect = RateLimitError(
+            "Rate limit", reset_time=None
+        )
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option L triggers rate limit, then Q to quit
+            patch("builtins.input", side_effect=["L", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_option_l_invalid_selection(self, tmp_path):
+        """Test Option L with invalid selection input."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        repos = [
+            {"full_name": "user/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option L, confirm, invalid selection, then Q
+            patch("builtins.input", side_effect=["L", "Y", "invalid", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
