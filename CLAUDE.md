@@ -6,6 +6,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-28
 - Python 3.9+ (per constitution, leveraging type hints) + Standard library (urllib, json, csv, os, re); optional: requests (002-jira-integration)
 - CSV files for export (same as existing GitHub exports) (002-jira-integration)
 - Python 3.9+ (per constitution, leveraging type hints) + Standard library only (urllib, json, csv, os, re, datetime, statistics); optional: requests (already used in jira_client.py) (003-jira-quality-metrics)
+- Python 3.9+ (as per constitution, leveraging type hints) + Standard library only (urllib, json); optional: requests (existing pattern) (004-github-repo-selection)
+- N/A (repos.txt file is input, not storage) (004-github-repo-selection)
 
 - Python 3.9+ (as per constitution, leveraging type hints) + Standard library only (urllib, json, csv, os, re); optional: requests (001-modular-refactor)
 
@@ -37,10 +39,10 @@ python github_analyzer.py --days 7
 Python 3.9+ (as per constitution, leveraging type hints): Follow standard conventions
 
 ## Recent Changes
+- 004-github-repo-selection: Added Python 3.9+ (as per constitution, leveraging type hints) + Standard library only (urllib, json); optional: requests (existing pattern)
 - 003-jira-quality-metrics: Added Python 3.9+ (per constitution, leveraging type hints) + Standard library only (urllib, json, csv, os, re, datetime, statistics); optional: requests (already used in jira_client.py)
 - 002-jira-integration: Added Python 3.9+ (per constitution, leveraging type hints) + Standard library (urllib, json, csv, os, re); optional: requests
 
-- 001-modular-refactor: Added Python 3.9+ (as per constitution, leveraging type hints) + Standard library only (urllib, json, csv, os, re); optional: requests
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

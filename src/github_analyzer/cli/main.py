@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -404,6 +405,349 @@ def validate_sources(sources: list[DataSource]) -> None:
                     "Jira source requested but Jira credentials incomplete. "
                     "Set JIRA_URL, JIRA_EMAIL, and JIRA_API_TOKEN environment variables."
                 )
+
+
+# GitHub repository validation patterns (per spec Validation Patterns section)
+REPO_FORMAT_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$")
+ORG_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$")
+
+
+def validate_repo_format(repo: str) -> bool:
+    """Validate repository name format (owner/repo).
+
+    Per spec FR-011 and Validation Patterns section:
+    - Pattern: ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$
+    - Valid: owner/repo, my-org/my-repo, user123/project_v2
+
+    Args:
+        repo: Repository string to validate.
+
+    Returns:
+        True if valid format, False otherwise.
+    """
+    if not repo or not repo.strip():
+        return False
+    return bool(REPO_FORMAT_PATTERN.match(repo.strip()))
+
+
+def validate_org_name(org: str) -> bool:
+    """Validate organization name format.
+
+    Per spec Validation Patterns section:
+    - Pattern: ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$
+    - Rules: 1-39 chars, alphanumeric and hyphens, cannot start/end with hyphen
+    - Double hyphens (--) are not allowed
+
+    Args:
+        org: Organization name to validate.
+
+    Returns:
+        True if valid format, False otherwise.
+    """
+    if not org or not org.strip():
+        return False
+    org = org.strip()
+    if len(org) > 39:
+        return False
+    # Double hyphens not allowed
+    if "--" in org:
+        return False
+    # Single character is valid
+    if len(org) == 1:
+        return org.isalnum()
+    return bool(ORG_NAME_PATTERN.match(org))
+
+
+def format_repo_list(repos: list[dict]) -> str:
+    """Format GitHub repositories for display.
+
+    Per spec Display Format section:
+    - N. owner/repo-name - Description (truncated to 50 chars)
+    - N. owner/private-repo - [private] Description here
+
+    Args:
+        repos: List of repository dictionaries with full_name, private, description.
+
+    Returns:
+        Formatted string for terminal display.
+    """
+    lines = []
+    for idx, repo in enumerate(repos, 1):
+        full_name = repo.get("full_name", "unknown")
+        is_private = repo.get("private", False)
+        description = repo.get("description") or ""
+
+        # Truncate description to 50 chars
+        if len(description) > 50:
+            description = description[:47] + "..."
+
+        # Build display line
+        if is_private:
+            if description:
+                lines.append(f"  {idx}. {full_name} - [private] {description}")
+            else:
+                lines.append(f"  {idx}. {full_name} - [private]")
+        else:
+            if description:
+                lines.append(f"  {idx}. {full_name} - {description}")
+            else:
+                lines.append(f"  {idx}. {full_name}")
+
+    return "\n".join(lines)
+
+
+def load_github_repos_from_file(repos_file: str) -> list[str]:
+    """Load repository names from repos.txt file.
+
+    Args:
+        repos_file: Path to repos.txt file.
+
+    Returns:
+        List of repository names (owner/repo format), or empty if file missing/empty.
+    """
+    try:
+        path = Path(repos_file)
+        if not path.exists():
+            return []
+
+        content = path.read_text().strip()
+        if not content:
+            return []
+
+        repos = []
+        for line in content.splitlines():
+            line = line.strip()
+            # Skip comments and empty lines
+            if not line or line.startswith("#"):
+                continue
+            # Handle full URLs
+            if line.startswith("http"):
+                # Extract owner/repo from URL
+                # https://github.com/owner/repo or https://github.com/owner/repo.git
+                parts = line.rstrip("/").rstrip(".git").split("/")
+                if len(parts) >= 2:
+                    repos.append(f"{parts[-2]}/{parts[-1]}")
+            else:
+                repos.append(line)
+        return repos
+    except OSError:
+        return []
+
+
+def _handle_rate_limit(e: RateLimitError, log) -> None:
+    """Handle rate limit error with wait time display (FR-008, T049).
+
+    Per spec Edge Cases: Show wait time to user.
+
+    Args:
+        e: RateLimitError with reset_time.
+        log: Logging function.
+    """
+    import time as time_module
+    if e.reset_time:
+        wait_seconds = max(0, e.reset_time - int(time_module.time()))
+        log(f"Rate limit exceeded. Waiting {wait_seconds} seconds...", "warning")
+    else:
+        log("Rate limit exceeded. Please try again later.", "warning")
+
+
+def select_github_repos(
+    repos_file: str,
+    github_token: str,
+    interactive: bool = True,
+    output: TerminalOutput | None = None,
+) -> list[str]:
+    """Select GitHub repositories from file or interactively (Feature 004).
+
+    Per spec FR-001 to FR-014:
+    - Display interactive menu when repos.txt is missing or empty
+    - Options: [A] All personal, [S] Specify manually, [O] Organization,
+               [L] Select from list, [Q] Quit/Skip
+    - Follow select_jira_projects pattern for UX consistency (FR-003)
+
+    Args:
+        repos_file: Path to repos.txt file.
+        github_token: GitHub API token for API calls.
+        interactive: If True, prompt user when file is missing/empty.
+                    If False (--quiet mode), skip prompts per FR-013.
+        output: Optional TerminalOutput for consistent logging.
+
+    Returns:
+        List of repository names (owner/repo format) to analyze.
+    """
+    # Helper for consistent output
+    def log(msg: str, level: str = "info") -> None:
+        if output:
+            output.log(msg, level)
+        else:
+            print(msg)
+
+    # Try loading from file first (FR-001)
+    file_repos = load_github_repos_from_file(repos_file)
+    if file_repos:
+        return file_repos
+
+    # No file or empty - need to prompt or skip
+    if not interactive:
+        # FR-013, FR-014: Non-interactive mode skips prompts
+        log("No repos.txt found. Skipping GitHub analysis in non-interactive mode.", "info")
+        return []
+
+    # Display menu per FR-002
+    print("\nOptions:")
+    print("  [A] Analyze ALL accessible repositories")
+    print("  [S] Specify repository names manually (owner/repo format)")
+    print("  [O] Analyze organization repositories")
+    print("  [L] Select from list by number (e.g., 1,3,5 or 1-3)")
+    print("  [Q] Quit/Skip GitHub analysis")
+
+    # Create client for API calls - use provided token
+    config = AnalyzerConfig(github_token=github_token)
+    client = GitHubClient(config)
+
+    try:
+        while True:
+            try:
+                choice = input("\nYour choice [A/S/O/L/Q]: ").strip().upper()
+            except (EOFError, KeyboardInterrupt):
+                # FR-004: Handle EOF/KeyboardInterrupt gracefully
+                log("GitHub analysis skipped.", "warning")
+                return []
+
+            if choice == "A":
+                # FR-005: List all user repos
+                log("Fetching your repositories...", "info")
+                try:
+                    repos = client.list_user_repos()
+                    if not repos:
+                        log("No repositories found for your account.", "warning")
+                        continue
+                    repo_names = [r["full_name"] for r in repos]
+                    log(f"Using all {len(repo_names)} repositories.", "success")
+                    return repo_names
+                except RateLimitError as e:
+                    _handle_rate_limit(e, log)
+                    continue
+                except GitHubAnalyzerError as e:
+                    log(f"Error fetching repositories: {e.message}", "error")
+                    continue
+
+            elif choice == "S":
+                # FR-009: Manual specification
+                try:
+                    manual_input = input("Enter repository names (owner/repo, comma-separated): ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    log("GitHub analysis skipped.", "warning")
+                    return []
+
+                if not manual_input:
+                    log("No repositories entered.", "warning")
+                    continue
+
+                # Parse and validate (FR-011, FR-012)
+                manual_repos = [r.strip() for r in manual_input.split(",") if r.strip()]
+                valid_repos = [r for r in manual_repos if validate_repo_format(r)]
+                invalid_repos = [r for r in manual_repos if not validate_repo_format(r)]
+
+                if invalid_repos:
+                    log(f"Invalid repository format ignored: {', '.join(invalid_repos)}", "warning")
+
+                if valid_repos:
+                    log(f"Selected {len(valid_repos)} repositories: {', '.join(valid_repos)}", "success")
+                    return valid_repos
+                else:
+                    log("No valid repository names entered. Try again.", "warning")
+
+            elif choice == "O":
+                # FR-006: Organization repos
+                try:
+                    org_name = input("Enter organization name: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    log("GitHub analysis skipped.", "warning")
+                    return []
+
+                if not validate_org_name(org_name):
+                    log("Invalid organization name format.", "warning")
+                    continue
+
+                log(f"Fetching repositories for organization '{org_name}'...", "info")
+                try:
+                    repos = client.list_org_repos(org_name)
+                    if not repos:
+                        log(f"No repositories found in organization '{org_name}'.", "warning")
+                        continue
+
+                    # Show list and allow selection
+                    log(f"Found {len(repos)} repositories:", "info")
+                    print(format_repo_list(repos))
+
+                    # Ask for selection
+                    try:
+                        selection_input = input("\nSelect (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        log("GitHub analysis skipped.", "warning")
+                        return []
+
+                    indices = parse_project_selection(selection_input, len(repos))
+                    if indices:
+                        selected = [repos[i]["full_name"] for i in indices]
+                        log(f"Selected {len(selected)} repositories.", "success")
+                        return selected
+                    else:
+                        log("Invalid selection.", "warning")
+
+                except RateLimitError as e:
+                    _handle_rate_limit(e, log)
+                    continue
+                except GitHubAnalyzerError as e:
+                    if "404" in str(e):
+                        log(f"Organization '{org_name}' not found or not accessible.", "warning")
+                    else:
+                        log(f"Error fetching organization repos: {e.message}", "error")
+                    continue
+
+            elif choice == "L":
+                # FR-010: Select from personal list
+                log("Fetching your repositories...", "info")
+                try:
+                    repos = client.list_user_repos()
+                    if not repos:
+                        log("No repositories found for your account.", "warning")
+                        continue
+
+                    log(f"Found {len(repos)} repositories:", "info")
+                    print(format_repo_list(repos))
+
+                    try:
+                        selection_input = input("\nSelect (e.g., 1,3,5 or 1-3 or 'all'): ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        log("GitHub analysis skipped.", "warning")
+                        return []
+
+                    indices = parse_project_selection(selection_input, len(repos))
+                    if indices:
+                        selected = [repos[i]["full_name"] for i in indices]
+                        log(f"Selected {len(selected)} repositories.", "success")
+                        return selected
+                    else:
+                        log("Invalid selection. Try again.", "warning")
+
+                except RateLimitError as e:
+                    _handle_rate_limit(e, log)
+                    continue
+                except GitHubAnalyzerError as e:
+                    log(f"Error fetching repositories: {e.message}", "error")
+                    continue
+
+            elif choice == "Q":
+                log("GitHub analysis skipped.", "warning")
+                return []
+
+            else:
+                log("Invalid choice. Please enter A, S, O, L, or Q.", "warning")
+
+    finally:
+        client.close()
 
 
 def format_project_list(projects: list[JiraProject]) -> str:

@@ -352,6 +352,60 @@ class GitHubClient:
 
         return all_items
 
+    def list_user_repos(
+        self,
+        affiliation: str = "owner,collaborator",
+    ) -> list[dict]:
+        """List repositories for the authenticated user.
+
+        Fetches all repositories the user has access to based on affiliation.
+        Supports pagination for accounts with many repositories.
+
+        Args:
+            affiliation: Filter by owner relationship. Comma-separated list
+                of values: owner, collaborator, organization_member.
+                Defaults to "owner,collaborator" per FR-005.
+
+        Returns:
+            List of repository dictionaries with full_name, private, description.
+
+        Raises:
+            RateLimitError: If GitHub API rate limit exceeded.
+            APIError: On API errors (auth failure, network issues).
+        """
+        return self.paginate(
+            "/user/repos",
+            params={"affiliation": affiliation},
+        )
+
+    def list_org_repos(
+        self,
+        org: str,
+        repo_type: str = "all",
+    ) -> list[dict]:
+        """List repositories for an organization.
+
+        Fetches all repositories in the specified organization that the
+        authenticated user can access. Supports pagination for orgs
+        with many repositories (100+).
+
+        Args:
+            org: Organization name (e.g., "facebook", "microsoft").
+            repo_type: Type filter: all, public, private, forks, sources.
+                Defaults to "all" per FR-006.
+
+        Returns:
+            List of repository dictionaries with full_name, private, description.
+
+        Raises:
+            RateLimitError: If GitHub API rate limit exceeded.
+            APIError: On API errors (404 for non-existent org, auth issues).
+        """
+        return self.paginate(
+            f"/orgs/{org}/repos",
+            params={"type": repo_type},
+        )
+
     def validate_response(
         self,
         data: dict | list | None,

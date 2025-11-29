@@ -677,3 +677,171 @@ class TestGitHubClientUrllibErrors:
         request = call_args[0][0]
         assert "page=1" in request.full_url
         assert "per_page=100" in request.full_url
+
+
+class TestGitHubClientListUserRepos:
+    """Tests for list_user_repos method (T003)."""
+
+    def test_lists_user_repos_with_owner_collaborator_affiliation(self, mock_config):
+        """Test list_user_repos uses owner,collaborator affiliation."""
+        client = GitHubClient(mock_config)
+
+        mock_repos = [
+            {"full_name": "user/repo1", "private": False, "description": "Repo 1"},
+            {"full_name": "user/repo2", "private": True, "description": "Repo 2"},
+        ]
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = mock_repos
+
+            result = client.list_user_repos()
+
+            assert result == mock_repos
+            mock_paginate.assert_called_once()
+            call_args = mock_paginate.call_args
+            assert call_args[0][0] == "/user/repos"
+            params = call_args[1].get("params", call_args[0][1] if len(call_args[0]) > 1 else {})
+            assert params.get("affiliation") == "owner,collaborator"
+
+    def test_lists_user_repos_with_custom_affiliation(self, mock_config):
+        """Test list_user_repos accepts custom affiliation."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = []
+
+            client.list_user_repos(affiliation="owner")
+
+            call_args = mock_paginate.call_args
+            params = call_args[1].get("params", call_args[0][1] if len(call_args[0]) > 1 else {})
+            assert params.get("affiliation") == "owner"
+
+    def test_lists_user_repos_returns_empty_list(self, mock_config):
+        """Test list_user_repos returns empty list when no repos."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = []
+
+            result = client.list_user_repos()
+
+            assert result == []
+
+    def test_lists_user_repos_handles_rate_limit(self, mock_config):
+        """Test list_user_repos propagates RateLimitError."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.side_effect = RateLimitError("Rate limit exceeded")
+
+            with pytest.raises(RateLimitError):
+                client.list_user_repos()
+
+    def test_lists_user_repos_handles_api_error(self, mock_config):
+        """Test list_user_repos propagates APIError."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.side_effect = APIError("Unauthorized", status_code=401)
+
+            with pytest.raises(APIError):
+                client.list_user_repos()
+
+
+class TestGitHubClientListOrgRepos:
+    """Tests for list_org_repos method (T004)."""
+
+    def test_lists_org_repos(self, mock_config):
+        """Test list_org_repos fetches repos for organization."""
+        client = GitHubClient(mock_config)
+
+        mock_repos = [
+            {"full_name": "myorg/repo1", "private": False, "description": "Org Repo 1"},
+            {"full_name": "myorg/repo2", "private": True, "description": "Org Repo 2"},
+        ]
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = mock_repos
+
+            result = client.list_org_repos("myorg")
+
+            assert result == mock_repos
+            mock_paginate.assert_called_once()
+            call_args = mock_paginate.call_args
+            assert call_args[0][0] == "/orgs/myorg/repos"
+
+    def test_lists_org_repos_uses_type_all(self, mock_config):
+        """Test list_org_repos uses type=all by default."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = []
+
+            client.list_org_repos("myorg")
+
+            call_args = mock_paginate.call_args
+            params = call_args[1].get("params", call_args[0][1] if len(call_args[0]) > 1 else {})
+            assert params.get("type") == "all"
+
+    def test_lists_org_repos_with_custom_type(self, mock_config):
+        """Test list_org_repos accepts custom type parameter."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = []
+
+            client.list_org_repos("myorg", repo_type="public")
+
+            call_args = mock_paginate.call_args
+            params = call_args[1].get("params", call_args[0][1] if len(call_args[0]) > 1 else {})
+            assert params.get("type") == "public"
+
+    def test_lists_org_repos_returns_empty_list(self, mock_config):
+        """Test list_org_repos returns empty list when no repos."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = []
+
+            result = client.list_org_repos("empty-org")
+
+            assert result == []
+
+    def test_lists_org_repos_handles_org_not_found(self, mock_config):
+        """Test list_org_repos handles 404 for non-existent org."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.side_effect = APIError("Not Found", status_code=404)
+
+            with pytest.raises(APIError) as exc_info:
+                client.list_org_repos("nonexistent-org")
+
+            assert exc_info.value.status_code == 404
+
+    def test_lists_org_repos_handles_rate_limit(self, mock_config):
+        """Test list_org_repos propagates RateLimitError."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.side_effect = RateLimitError("Rate limit exceeded")
+
+            with pytest.raises(RateLimitError):
+                client.list_org_repos("myorg")
+
+    def test_lists_org_repos_handles_pagination(self, mock_config):
+        """Test list_org_repos handles pagination for 100+ repos."""
+        mock_config.per_page = 50
+        mock_config.max_pages = 10
+        client = GitHubClient(mock_config)
+
+        # Simulate 150 repos (3 pages)
+        mock_repos = [{"full_name": f"myorg/repo{i}"} for i in range(150)]
+
+        with patch.object(client, "paginate") as mock_paginate:
+            mock_paginate.return_value = mock_repos
+
+            result = client.list_org_repos("myorg")
+
+            assert len(result) == 150
+            mock_paginate.assert_called_once()
