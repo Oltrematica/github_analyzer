@@ -456,3 +456,357 @@ class TestMain:
             result = main()
 
         assert result == 2
+
+
+# =============================================================================
+# Tests for Jira integration in CLI (Feature 003)
+# =============================================================================
+
+
+class TestJiraIntegrationInCLI:
+    """Tests for Jira extraction flow with quality metrics in CLI."""
+
+    def test_jira_extraction_full_flow(self, tmp_path):
+        """Test complete Jira extraction with metrics calculation and export."""
+        from datetime import datetime, timezone
+
+        from src.github_analyzer.api.jira_client import JiraComment, JiraIssue
+
+        # Create mock config
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        # Create mock Jira config
+        mock_jira_config = Mock()
+        mock_jira_config.base_url = "https://test.atlassian.net"
+
+        # Create test issue
+        test_issue = JiraIssue(
+            key="PROJ-1",
+            summary="Test issue",
+            description="Test description with details",
+            status="Done",
+            issue_type="Bug",
+            priority="High",
+            assignee="John Doe",
+            reporter="Jane Smith",
+            created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+            updated=datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc),
+            resolution_date=datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc),
+            project_key="PROJ",
+        )
+
+        # Create test comment
+        test_comment = JiraComment(
+            id="1",
+            issue_key="PROJ-1",
+            author="Alice",
+            created=datetime(2025, 11, 2, 10, 0, 0, tzinfo=timezone.utc),
+            body="Test comment",
+        )
+
+        # Mock JiraClient
+        mock_client = Mock()
+        mock_client.search_issues.return_value = iter([test_issue])
+        mock_client.get_comments.return_value = [test_comment]
+        mock_client.get_issue_changelog.return_value = []
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "jira", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "JIRA_URL": "https://test.atlassian.net",
+                    "JIRA_EMAIL": "test@example.com",
+                    "JIRA_API_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "JiraConfig") as MockJiraConfig,
+            patch.object(main_module, "select_jira_projects", return_value=["PROJ"]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch(
+                "src.github_analyzer.api.jira_client.JiraClient",
+                return_value=mock_client,
+            ),
+        ):
+            MockConfig.from_env.return_value = mock_config
+            MockJiraConfig.from_env.return_value = mock_jira_config
+
+            result = main()
+
+        assert result == 0
+
+        # Verify CSV files were created
+        assert (tmp_path / "jira_issues_export.csv").exists()
+        assert (tmp_path / "jira_comments_export.csv").exists()
+        assert (tmp_path / "jira_project_metrics.csv").exists()
+        assert (tmp_path / "jira_person_metrics.csv").exists()
+        assert (tmp_path / "jira_type_metrics.csv").exists()
+
+    def test_jira_extraction_with_multiple_issues(self, tmp_path):
+        """Test Jira extraction with multiple issues across projects."""
+        from datetime import datetime, timezone
+
+        from src.github_analyzer.api.jira_client import JiraComment, JiraIssue
+
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_jira_config = Mock()
+        mock_jira_config.base_url = "https://test.atlassian.net"
+
+        # Create multiple test issues
+        issues = [
+            JiraIssue(
+                key="PROJ-1",
+                summary="Bug fix",
+                description="Fix critical bug",
+                status="Done",
+                issue_type="Bug",
+                priority="Critical",
+                assignee="John",
+                reporter="Jane",
+                created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+                updated=datetime(2025, 11, 10, 10, 0, 0, tzinfo=timezone.utc),
+                resolution_date=datetime(2025, 11, 10, 10, 0, 0, tzinfo=timezone.utc),
+                project_key="PROJ",
+            ),
+            JiraIssue(
+                key="PROJ-2",
+                summary="New feature",
+                description="## Description\n\nImplement feature\n\n## Acceptance Criteria\n\n- [ ] Test",
+                status="Open",
+                issue_type="Story",
+                priority="Medium",
+                assignee="Alice",
+                reporter="Bob",
+                created=datetime(2025, 11, 5, 10, 0, 0, tzinfo=timezone.utc),
+                updated=datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc),
+                resolution_date=None,
+                project_key="PROJ",
+            ),
+            JiraIssue(
+                key="OTHER-1",
+                summary="Task",
+                description="Do something",
+                status="Done",
+                issue_type="Task",
+                priority="Low",
+                assignee=None,
+                reporter="Admin",
+                created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+                updated=datetime(2025, 11, 1, 18, 0, 0, tzinfo=timezone.utc),
+                resolution_date=datetime(2025, 11, 1, 18, 0, 0, tzinfo=timezone.utc),
+                project_key="OTHER",
+            ),
+        ]
+
+        comments = {
+            "PROJ-1": [
+                JiraComment(
+                    id="1",
+                    issue_key="PROJ-1",
+                    author="Alice",
+                    created=datetime(2025, 11, 2, 10, 0, 0, tzinfo=timezone.utc),
+                    body="Looking into this",
+                ),
+                JiraComment(
+                    id="2",
+                    issue_key="PROJ-1",
+                    author="Bob",
+                    created=datetime(2025, 11, 3, 10, 0, 0, tzinfo=timezone.utc),
+                    body="Fixed",
+                ),
+            ],
+            "PROJ-2": [],
+            "OTHER-1": [],
+        }
+
+        mock_client = Mock()
+        mock_client.search_issues.return_value = iter(issues)
+        mock_client.get_comments.side_effect = lambda key: comments.get(key, [])
+        mock_client.get_issue_changelog.return_value = []
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "jira", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "JIRA_URL": "https://test.atlassian.net",
+                    "JIRA_EMAIL": "test@example.com",
+                    "JIRA_API_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "JiraConfig") as MockJiraConfig,
+            patch.object(main_module, "select_jira_projects", return_value=["PROJ", "OTHER"]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch(
+                "src.github_analyzer.api.jira_client.JiraClient",
+                return_value=mock_client,
+            ),
+        ):
+            MockConfig.from_env.return_value = mock_config
+            MockJiraConfig.from_env.return_value = mock_jira_config
+
+            result = main()
+
+        assert result == 0
+
+        # Verify all files created
+        assert (tmp_path / "jira_issues_export.csv").exists()
+        assert (tmp_path / "jira_project_metrics.csv").exists()
+
+        # Verify project metrics has 2 projects
+        import csv
+
+        with open(tmp_path / "jira_project_metrics.csv") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        assert len(rows) == 2
+        project_keys = {row["project_key"] for row in rows}
+        assert project_keys == {"PROJ", "OTHER"}
+
+    def test_jira_extraction_handles_empty_results(self, tmp_path):
+        """Test Jira extraction handles no issues gracefully."""
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_jira_config = Mock()
+        mock_jira_config.base_url = "https://test.atlassian.net"
+
+        mock_client = Mock()
+        mock_client.search_issues.return_value = iter([])
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "jira", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "JIRA_URL": "https://test.atlassian.net",
+                    "JIRA_EMAIL": "test@example.com",
+                    "JIRA_API_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "JiraConfig") as MockJiraConfig,
+            patch.object(main_module, "select_jira_projects", return_value=["PROJ"]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch(
+                "src.github_analyzer.api.jira_client.JiraClient",
+                return_value=mock_client,
+            ),
+        ):
+            MockConfig.from_env.return_value = mock_config
+            MockJiraConfig.from_env.return_value = mock_jira_config
+
+            result = main()
+
+        assert result == 0
+        # Files should still be created (with headers only)
+        assert (tmp_path / "jira_issues_export.csv").exists()
+
+    def test_jira_extraction_with_changelog_for_reopens(self, tmp_path):
+        """Test Jira extraction retrieves changelog for reopen detection."""
+        from datetime import datetime, timezone
+
+        from src.github_analyzer.api.jira_client import JiraIssue
+
+        mock_config = Mock(spec=AnalyzerConfig)
+        mock_config.output_dir = tmp_path
+        mock_config.days = 30
+        mock_config.verbose = False
+        mock_config.validate = Mock()
+
+        mock_jira_config = Mock()
+        mock_jira_config.base_url = "https://test.atlassian.net"
+
+        test_issue = JiraIssue(
+            key="PROJ-1",
+            summary="Reopened issue",
+            description="This issue was reopened",
+            status="Done",
+            issue_type="Bug",
+            priority="High",
+            assignee="John",
+            reporter="Jane",
+            created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+            updated=datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc),
+            resolution_date=datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc),
+            project_key="PROJ",
+        )
+
+        # Changelog showing Done -> Open -> Done (1 reopen)
+        changelog = [
+            {
+                "items": [
+                    {"field": "status", "fromString": "Open", "toString": "Done"}
+                ]
+            },
+            {
+                "items": [
+                    {"field": "status", "fromString": "Done", "toString": "Open"}
+                ]
+            },
+            {
+                "items": [
+                    {"field": "status", "fromString": "Open", "toString": "Done"}
+                ]
+            },
+        ]
+
+        mock_client = Mock()
+        mock_client.search_issues.return_value = iter([test_issue])
+        mock_client.get_comments.return_value = []
+        mock_client.get_issue_changelog.return_value = changelog
+
+        with (
+            patch("sys.argv", ["prog", "--sources", "jira", "--quiet", "--days", "30", "--full"]),
+            patch.dict(
+                os.environ,
+                {
+                    "JIRA_URL": "https://test.atlassian.net",
+                    "JIRA_EMAIL": "test@example.com",
+                    "JIRA_API_TOKEN": "test_token",
+                },
+                clear=True,
+            ),
+            patch.object(main_module, "AnalyzerConfig") as MockConfig,
+            patch.object(main_module, "JiraConfig") as MockJiraConfig,
+            patch.object(main_module, "select_jira_projects", return_value=["PROJ"]),
+            patch.object(main_module, "prompt_yes_no", return_value=True),
+            patch(
+                "src.github_analyzer.api.jira_client.JiraClient",
+                return_value=mock_client,
+            ),
+        ):
+            MockConfig.from_env.return_value = mock_config
+            MockJiraConfig.from_env.return_value = mock_jira_config
+
+            result = main()
+
+        assert result == 0
+
+        # Verify changelog was called
+        mock_client.get_issue_changelog.assert_called_once_with("PROJ-1")
+
+        # Verify reopen_count in export
+        import csv
+
+        with open(tmp_path / "jira_issues_export.csv") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+        assert row["reopen_count"] == "1"
