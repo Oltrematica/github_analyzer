@@ -27,7 +27,7 @@ from src.github_analyzer.analyzers import (
 )
 from src.github_analyzer.api import GitHubClient, RepositoryStats
 from src.github_analyzer.cli.output import TerminalOutput
-from src.github_analyzer.config import AnalyzerConfig, Repository, load_repositories
+from src.github_analyzer.config import AnalyzerConfig, Repository
 from src.github_analyzer.config.settings import DataSource, JiraConfig
 from src.github_analyzer.config.validation import load_jira_projects
 from src.github_analyzer.core.exceptions import (
@@ -996,14 +996,28 @@ def main() -> int:
         output.log(f"Full PR details: {'Yes' if fetch_pr_details else 'No'}", "info")
 
         # Load GitHub repositories if GitHub source is enabled
-        repositories = []
+        repositories: list[Repository] = []
         if DataSource.GITHUB in sources:
-            output.log(f"Loading repositories from {config.repos_file}...")
-            repositories = load_repositories(config.repos_file)
-            output.log(f"Found {len(repositories)} repositories to analyze", "success")
+            # Use interactive selection (Feature 004)
+            # select_github_repos handles: file loading, empty/missing file prompts
+            interactive = not args.quiet if hasattr(args, "quiet") else True
+            repo_names = select_github_repos(
+                repos_file=config.repos_file,
+                github_token=config.github_token,
+                interactive=interactive,
+                output=output,
+            )
 
-            for repo in repositories:
-                output.log(f"  • {repo.full_name}", "info")
+            # Convert string names to Repository objects
+            for name in repo_names:
+                repositories.append(Repository.from_string(name))
+
+            if repositories:
+                output.log(f"Found {len(repositories)} repositories to analyze", "success")
+                for repo in repositories:
+                    output.log(f"  • {repo.full_name}", "info")
+            else:
+                output.log("No GitHub repositories selected", "warning")
 
         # Load Jira projects if Jira source is enabled
         jira_config = None
