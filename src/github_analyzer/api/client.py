@@ -406,6 +406,111 @@ class GitHubClient:
             params={"type": repo_type},
         )
 
+    def search_repos(
+        self,
+        query: str,
+        per_page: int = 100,
+        max_results: int = 1000,
+    ) -> dict[str, Any]:
+        """Search repositories using GitHub Search API (Feature 005).
+
+        Uses the Search API to find repositories matching the query.
+        Search API has separate rate limits (30 req/min authenticated)
+        from the core API (5000 req/hour).
+
+        Args:
+            query: Search query string with GitHub qualifiers.
+                Examples:
+                - "org:github+pushed:>2025-10-30" (org repos with recent activity)
+                - "user:octocat+pushed:>2025-11-01" (user repos with recent activity)
+            per_page: Results per page (max 100). Defaults to 100.
+            max_results: Maximum total results to return (max 1000 due to API limit).
+
+        Returns:
+            SearchResult dict with:
+            - total_count: Total matching repositories
+            - incomplete_results: True if results may be incomplete
+            - items: List of matching repository dicts
+
+        Raises:
+            RateLimitError: If Search API rate limit exceeded (30/min).
+            APIError: On API errors.
+
+        Note:
+            Search API limits:
+            - Max 1000 results per query (GitHub limitation)
+            - 30 requests/minute for authenticated users
+            - Results may be incomplete for large result sets
+        """
+        url = urljoin(GITHUB_API_BASE, "/search/repositories")
+        all_items: list[dict] = []
+        incomplete_results = False
+        total_count = 0
+
+        # GitHub Search API limits: max 100 per page, max 1000 total
+        per_page = min(per_page, 100)
+        max_results = min(max_results, 1000)
+        max_pages = (max_results + per_page - 1) // per_page
+
+        for page in range(1, max_pages + 1):
+            params = {
+                "q": query,
+                "per_page": per_page,
+                "page": page,
+            }
+
+            data, _ = self._request_with_retry(url, params)
+
+            if data is None or not isinstance(data, dict):
+                break
+
+            total_count = data.get("total_count", 0)
+            incomplete_results = incomplete_results or data.get("incomplete_results", False)
+            items = data.get("items", [])
+
+            all_items.extend(items)
+
+            # Stop if we got fewer items than requested (last page)
+            # or if we've reached max_results
+            if len(items) < per_page or len(all_items) >= max_results:
+                break
+
+        # Truncate to max_results
+        if len(all_items) > max_results:
+            all_items = all_items[:max_results]
+
+        return {
+            "total_count": total_count,
+            "incomplete_results": incomplete_results,
+            "items": all_items,
+        }
+
+    def search_active_org_repos(
+        self,
+        org: str,
+        cutoff_date: str,
+        per_page: int = 100,
+    ) -> dict[str, Any]:
+        """Search for active repositories in an organization (Feature 005 - T024).
+
+        Uses GitHub Search API with org: and pushed: qualifiers for efficient
+        filtering of large organizations.
+
+        Args:
+            org: Organization name (e.g., "github", "microsoft").
+            cutoff_date: ISO date string (YYYY-MM-DD) for activity cutoff.
+            per_page: Results per page (max 100).
+
+        Returns:
+            SearchResult dict with active org repositories.
+
+        Example:
+            >>> client.search_active_org_repos("github", "2025-10-30")
+            {"total_count": 28, "incomplete_results": False, "items": [...]}
+        """
+        query = f"org:{org}+pushed:>{cutoff_date}"
+        return self.search_repos(query, per_page=per_page)
+
     def validate_response(
         self,
         data: dict | list | None,

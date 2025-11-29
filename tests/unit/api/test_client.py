@@ -748,6 +748,152 @@ class TestGitHubClientListUserRepos:
                 client.list_user_repos()
 
 
+class TestGitHubClientSearchRepos:
+    """Tests for search_repos method (T003 - Feature 005)."""
+
+    def test_search_repos_returns_search_result(self, mock_config):
+        """Test search_repos returns proper SearchResult structure."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {
+            "total_count": 2,
+            "incomplete_results": False,
+            "items": [
+                {"id": 1, "full_name": "org/repo1", "pushed_at": "2025-11-28T10:00:00Z"},
+                {"id": 2, "full_name": "org/repo2", "pushed_at": "2025-11-25T15:30:00Z"},
+            ]
+        }
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            result = client.search_repos("org:testorg+pushed:>2025-10-30")
+
+            assert result["total_count"] == 2
+            assert result["incomplete_results"] is False
+            assert len(result["items"]) == 2
+            assert result["items"][0]["full_name"] == "org/repo1"
+
+    def test_search_repos_builds_correct_url(self, mock_config):
+        """Test search_repos calls correct endpoint with query params."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {"total_count": 0, "incomplete_results": False, "items": []}
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            client.search_repos("org:github+pushed:>2025-10-30", per_page=50)
+
+            call_args = mock_request.call_args
+            url = call_args[0][0]
+            params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+
+            assert "search/repositories" in url
+            assert params.get("q") == "org:github+pushed:>2025-10-30"
+            assert params.get("per_page") == 50
+
+    def test_search_repos_paginates_for_large_results(self, mock_config):
+        """Test search_repos paginates when results exceed per_page."""
+        mock_config.per_page = 2
+        client = GitHubClient(mock_config)
+
+        # Simulate 3 results across 2 pages
+        page1 = {
+            "total_count": 3,
+            "incomplete_results": False,
+            "items": [
+                {"id": 1, "full_name": "org/repo1"},
+                {"id": 2, "full_name": "org/repo2"},
+            ]
+        }
+        page2 = {
+            "total_count": 3,
+            "incomplete_results": False,
+            "items": [
+                {"id": 3, "full_name": "org/repo3"},
+            ]
+        }
+
+        call_count = [0]
+        def mock_request(url, params=None):  # noqa: ARG001
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return (page1, {})
+            return (page2, {})
+
+        with patch.object(client, "_request_with_retry", side_effect=mock_request):
+            result = client.search_repos("org:test", per_page=2)
+
+            assert len(result["items"]) == 3
+            assert call_count[0] == 2
+
+    def test_search_repos_handles_empty_results(self, mock_config):
+        """Test search_repos handles empty results."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {"total_count": 0, "incomplete_results": False, "items": []}
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            result = client.search_repos("org:empty")
+
+            assert result["total_count"] == 0
+            assert result["items"] == []
+
+    def test_search_repos_respects_max_results(self, mock_config):
+        """Test search_repos stops at max_results limit."""
+        client = GitHubClient(mock_config)
+
+        # Return more than max_results
+        mock_response = {
+            "total_count": 1500,
+            "incomplete_results": False,
+            "items": [{"id": i} for i in range(100)]
+        }
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            result = client.search_repos("org:large", max_results=50)
+
+            # Should truncate to max_results
+            assert len(result["items"]) <= 50
+
+    def test_search_repos_handles_rate_limit(self, mock_config):
+        """Test search_repos propagates RateLimitError."""
+        client = GitHubClient(mock_config)
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.side_effect = RateLimitError(
+                "Search API rate limit exceeded",
+                reset_time=1234567890
+            )
+
+            with pytest.raises(RateLimitError) as exc_info:
+                client.search_repos("org:test")
+
+            assert exc_info.value.reset_time == 1234567890
+
+    def test_search_repos_preserves_incomplete_results_flag(self, mock_config):
+        """Test search_repos preserves incomplete_results from API."""
+        client = GitHubClient(mock_config)
+
+        mock_response = {
+            "total_count": 1000,
+            "incomplete_results": True,  # API indicates partial results
+            "items": [{"id": 1}]
+        }
+
+        with patch.object(client, "_request_with_retry") as mock_request:
+            mock_request.return_value = (mock_response, {})
+
+            result = client.search_repos("org:large")
+
+            assert result["incomplete_results"] is True
+
+
 class TestGitHubClientListOrgRepos:
     """Tests for list_org_repos method (T004)."""
 

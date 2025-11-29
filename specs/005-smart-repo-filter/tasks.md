@@ -24,8 +24,8 @@
 
 **Purpose**: No new project initialization needed - extending existing codebase
 
-- [ ] T001 Verify existing GitHubClient supports search endpoint pattern in src/github_analyzer/api/client.py
-- [ ] T002 Verify select_github_repos() skeleton from Feature 004 in src/github_analyzer/cli/main.py
+- [X] T001 Verify existing GitHubClient supports search endpoint pattern in src/github_analyzer/api/client.py
+- [X] T002 Verify select_github_repos() skeleton from Feature 004 in src/github_analyzer/cli/main.py
 
 ---
 
@@ -37,16 +37,16 @@
 
 ### Tests for Foundational Methods
 
-- [ ] T003 [P] Unit test for search_repos() in tests/unit/api/test_client.py
-- [ ] T004 [P] Unit test for get_cutoff_date() helper in tests/unit/cli/test_main.py
-- [ ] T005 [P] Unit test for filter_by_activity() in tests/unit/cli/test_main.py
+- [X] T003 [P] Unit test for search_repos() in tests/unit/api/test_client.py
+- [X] T004 [P] Unit test for get_cutoff_date() helper in tests/unit/cli/test_main.py
+- [X] T005 [P] Unit test for filter_by_activity() in tests/unit/cli/test_main.py
 
 ### Implementation for Foundational Methods
 
-- [ ] T006 Implement search_repos(query: str, per_page: int = 100) in src/github_analyzer/api/client.py
-- [ ] T007 [P] Implement get_cutoff_date(days: int) -> str helper in src/github_analyzer/cli/main.py
-- [ ] T008 [P] Implement filter_by_activity(repos: list, days: int) in src/github_analyzer/cli/main.py
-- [ ] T009 Implement display_activity_stats(total: int, active: int, days: int) in src/github_analyzer/cli/main.py
+- [X] T006 Implement search_repos(query: str, per_page: int = 100) in src/github_analyzer/api/client.py
+- [X] T007 [P] Implement get_cutoff_date(days: int) -> str helper in src/github_analyzer/cli/main.py
+- [X] T008 [P] Implement filter_by_activity(repos: list, days: int) in src/github_analyzer/cli/main.py
+- [X] T009 Implement display_activity_stats(total: int, active: int, days: int) in src/github_analyzer/cli/main.py
 
 **Checkpoint**: GitHubClient.search_repos() and filtering helpers ready - user story implementation can now begin
 
@@ -60,19 +60,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Test [A] option displays activity stats in tests/integration/test_smart_filter.py
-- [ ] T011 [P] [US1] Test [L] option displays activity stats in tests/integration/test_smart_filter.py
-- [ ] T012 [P] [US1] Test filter correctly identifies active repos by pushed_at (verify SC-003 accuracy) in tests/integration/test_smart_filter.py
-- [ ] T013 [P] [US1] Test stats format matches FR-007 "N repos found, M with activity" in tests/integration/test_smart_filter.py
-- [ ] T014 [P] [US1] Test uses --days parameter for cutoff date (FR-010) in tests/integration/test_smart_filter.py
+- [X] T010 [P] [US1] Test [A] option displays activity stats in tests/integration/test_smart_filter.py
+- [X] T011 [P] [US1] Test [L] option displays activity stats in tests/integration/test_smart_filter.py
+- [X] T012 [P] [US1] Test filter correctly identifies active repos by pushed_at (verify SC-003 accuracy) in tests/integration/test_smart_filter.py
+- [X] T013 [P] [US1] Test stats format matches FR-007 "N repos found, M with activity" in tests/integration/test_smart_filter.py
+- [X] T014 [P] [US1] Test uses --days parameter for cutoff date (FR-010) in tests/integration/test_smart_filter.py
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Modify _handle_option_a() to call filter_by_activity() in src/github_analyzer/cli/main.py
-- [ ] T016 [US1] Modify _handle_option_l() to call filter_by_activity() in src/github_analyzer/cli/main.py
-- [ ] T017 [US1] Add display_activity_stats() call after repo fetch in both handlers in src/github_analyzer/cli/main.py
-- [ ] T018 [US1] Add confirmation prompt "Proceed with N active repositories? [Y/n/all]" in src/github_analyzer/cli/main.py
-- [ ] T019 [US1] Pass days parameter from config to filtering functions in src/github_analyzer/cli/main.py
+- [X] T015 [US1] Modify _handle_option_a() to call filter_by_activity() in src/github_analyzer/cli/main.py
+- [X] T016 [US1] Modify _handle_option_l() to call filter_by_activity() in src/github_analyzer/cli/main.py
+- [X] T017 [US1] Add display_activity_stats() call after repo fetch in both handlers in src/github_analyzer/cli/main.py
+- [X] T018 [US1] Add confirmation prompt "Proceed with N active repositories? [Y/n/all]" in src/github_analyzer/cli/main.py
+- [X] T019 [US1] Pass days parameter from config to filtering functions in src/github_analyzer/cli/main.py
 
 **Checkpoint**: User Story 1 complete - [A] and [L] show activity stats and filter by default
 
@@ -86,17 +86,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Test [O] option uses Search API for org repos in tests/integration/test_smart_filter.py
-- [ ] T021 [P] [US2] Test org search query format "org:NAME+pushed:>DATE" in tests/unit/api/test_client.py
-- [ ] T022 [P] [US2] Test org stats display "50 org repos found, 12 with activity" in tests/integration/test_smart_filter.py
-- [ ] T023 [P] [US2] Test Search API pagination for large orgs (100+ active) in tests/unit/api/test_client.py
+- [X] T020 [P] [US2] Test [O] option uses Search API for org repos in tests/integration/test_smart_filter.py
+- [X] T021 [P] [US2] Test org search query format "org:NAME+pushed:>DATE" in tests/unit/api/test_client.py
+- [X] T022 [P] [US2] Test org stats display "50 org repos found, 12 with activity" in tests/integration/test_smart_filter.py
+- [X] T023 [P] [US2] Test Search API pagination for large orgs (100+ active) in tests/unit/api/test_client.py
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Implement search_active_org_repos(org: str, days: int) in src/github_analyzer/api/client.py
-- [ ] T025 [US2] Modify _handle_option_o() to use search_active_org_repos() in src/github_analyzer/cli/main.py
-- [ ] T026 [US2] Fetch total org count via list_org_repos() for stats display in src/github_analyzer/cli/main.py
-- [ ] T027 [US2] Add confirmation prompt for org repos matching [A]/[L] pattern in src/github_analyzer/cli/main.py
+- [X] T024 [US2] Implement search_active_org_repos(org: str, days: int) in src/github_analyzer/api/client.py
+- [X] T025 [US2] Modify _handle_option_o() to use search_active_org_repos() in src/github_analyzer/cli/main.py
+- [X] T026 [US2] Fetch total org count via list_org_repos() for stats display in src/github_analyzer/cli/main.py
+- [X] T027 [US2] Add confirmation prompt for org repos matching [A]/[L] pattern in src/github_analyzer/cli/main.py
 
 **Checkpoint**: User Story 2 complete - [O] option uses Search API for efficient filtering
 
@@ -110,15 +110,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] Test "all" response includes inactive repos in tests/integration/test_smart_filter.py
-- [ ] T029 [P] [US3] Test [S] option skips activity filter (FR-005) in tests/integration/test_smart_filter.py
-- [ ] T030 [P] [US3] Test filter toggle state preserved during selection in tests/integration/test_smart_filter.py
+- [X] T028 [P] [US3] Test "all" response includes inactive repos in tests/integration/test_smart_filter.py
+- [X] T029 [P] [US3] Test [S] option skips activity filter (FR-005) in tests/integration/test_smart_filter.py
+- [X] T030 [P] [US3] Test filter toggle state preserved during selection in tests/integration/test_smart_filter.py
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Handle "all" response to bypass filter in confirmation prompt in src/github_analyzer/cli/main.py
-- [ ] T032 [US3] Ensure [S] handler never applies activity filter in src/github_analyzer/cli/main.py
-- [ ] T033 [US3] Add "include inactive" option to zero-results warning (FR-009) in src/github_analyzer/cli/main.py
+- [X] T031 [US3] Handle "all" response to bypass filter in confirmation prompt in src/github_analyzer/cli/main.py
+- [X] T032 [US3] Ensure [S] handler never applies activity filter in src/github_analyzer/cli/main.py
+- [X] T033 [US3] Add "include inactive" option to zero-results warning (FR-009) in src/github_analyzer/cli/main.py
 
 **Checkpoint**: User Story 3 complete - users can override filter when needed
 
@@ -130,20 +130,20 @@
 
 ### Edge Cases (from spec.md)
 
-- [ ] T034 [P] Test zero active repos shows warning and options (FR-009) in tests/integration/test_smart_filter.py
-- [ ] T035 [P] Test Search API rate limit fallback to unfiltered (FR-008) in tests/integration/test_smart_filter.py
-- [ ] T036 [P] Test incomplete_results flag shows warning in tests/integration/test_smart_filter.py
+- [X] T034 [P] Test zero active repos shows warning and options (FR-009) in tests/integration/test_smart_filter.py
+- [X] T035 [P] Test Search API rate limit fallback to unfiltered (FR-008) in tests/integration/test_smart_filter.py
+- [X] T036 [P] Test incomplete_results flag shows warning in tests/integration/test_smart_filter.py
 
 ### Implementation for Edge Cases
 
-- [ ] T037 Implement rate limit fallback with warning message (FR-008) in src/github_analyzer/cli/main.py
-- [ ] T038 Implement zero-results warning with timeframe adjustment option in src/github_analyzer/cli/main.py
-- [ ] T039 Handle incomplete_results flag from Search API with warning in src/github_analyzer/cli/main.py
+- [X] T037 Implement rate limit fallback with warning message (FR-008) in src/github_analyzer/cli/main.py
+- [X] T038 Implement zero-results warning with timeframe adjustment option in src/github_analyzer/cli/main.py
+- [X] T039 Handle incomplete_results flag from Search API with warning in src/github_analyzer/cli/main.py
 
 ### Final Validation
 
-- [ ] T040 Run full test suite to ensure no regressions: pytest tests/ -v
-- [ ] T041 Validate quickstart.md scenarios work end-to-end (verify SC-001: stats display <5 seconds)
+- [X] T040 Run full test suite to ensure no regressions: pytest tests/ -v
+- [X] T041 Validate quickstart.md scenarios work end-to-end (verify SC-001: stats display <5 seconds)
 
 ---
 
