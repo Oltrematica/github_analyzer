@@ -7,15 +7,19 @@ requests to the GitHub REST API. It supports:
 - Exponential backoff for transient failures
 - requests/urllib fallback
 
-Security Notes:
+Security Notes (Feature 006):
 - Token is accessed from config, never stored separately
 - Token is never logged or exposed in error messages
+- Content-Type headers are validated on responses (FR-006)
+- API requests are audit logged in verbose mode (FR-009)
+- Timeout values are validated against threshold (FR-011)
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -24,6 +28,14 @@ from urllib.request import Request, urlopen
 
 from src.github_analyzer.config.settings import AnalyzerConfig
 from src.github_analyzer.core.exceptions import APIError, RateLimitError
+from src.github_analyzer.core.security import (
+    log_api_request,
+    validate_content_type,
+    validate_timeout,
+)
+
+# Module logger for security warnings and verbose output
+_logger = logging.getLogger(__name__)
 
 # Try to import requests for better performance
 try:
@@ -62,6 +74,9 @@ class GitHubClient:
         self._rate_limit_remaining: int | None = None
         self._rate_limit_reset: int | None = None
         self._session: Any = None
+
+        # Feature 006 (FR-011): Validate timeout against threshold
+        validate_timeout(config.timeout, logger=_logger)
 
         # Initialize requests session if available
         if HAS_REQUESTS:
@@ -125,15 +140,25 @@ class GitHubClient:
             APIError: On request failure.
             RateLimitError: On rate limit exceeded.
         """
+        start_time = time.time()
         try:
             response = self._session.get(
                 url,
                 params=params,
                 timeout=self._config.timeout,
             )
+            response_time_ms = (time.time() - start_time) * 1000
 
             # Update rate limit tracking
-            self._update_rate_limit(dict(response.headers))
+            headers = dict(response.headers)
+            self._update_rate_limit(headers)
+
+            # Feature 006 (FR-009): Verbose API audit logging
+            if self._config.verbose:
+                log_api_request("GET", url, response.status_code, _logger, response_time_ms)
+
+            # Feature 006 (FR-006): Validate Content-Type header
+            validate_content_type(headers, expected="application/json", logger=_logger)
 
             # Check for rate limit
             if response.status_code == 403 and self._rate_limit_remaining == 0:
@@ -145,7 +170,7 @@ class GitHubClient:
 
             # Check for errors
             if response.status_code == 404:
-                return None, dict(response.headers)
+                return None, headers
 
             if not response.ok:
                 raise APIError(
@@ -154,7 +179,7 @@ class GitHubClient:
                     status_code=response.status_code,
                 )
 
-            return response.json(), dict(response.headers)
+            return response.json(), headers
 
         except requests.exceptions.Timeout as e:
             raise APIError(
@@ -185,22 +210,37 @@ class GitHubClient:
             APIError: On request failure.
             RateLimitError: On rate limit exceeded.
         """
+        request_url = url
         if params:
-            url = f"{url}?{urlencode(params)}"
+            request_url = f"{url}?{urlencode(params)}"
 
-        request = Request(url, headers=self._get_headers())
+        request = Request(request_url, headers=self._get_headers())
 
+        start_time = time.time()
         try:
             with urlopen(request, timeout=self._config.timeout) as response:
+                response_time_ms = (time.time() - start_time) * 1000
                 headers = dict(response.headers)
                 self._update_rate_limit(headers)
+
+                # Feature 006 (FR-009): Verbose API audit logging
+                if self._config.verbose:
+                    log_api_request("GET", url, response.status, _logger, response_time_ms)
+
+                # Feature 006 (FR-006): Validate Content-Type header
+                validate_content_type(headers, expected="application/json", logger=_logger)
 
                 data = json.loads(response.read().decode("utf-8"))
                 return data, headers
 
         except HTTPError as e:
+            response_time_ms = (time.time() - start_time) * 1000
             headers = dict(e.headers) if e.headers else {}
             self._update_rate_limit(headers)
+
+            # Feature 006 (FR-009): Log even failed requests in verbose mode
+            if self._config.verbose:
+                log_api_request("GET", url, e.code, _logger, response_time_ms)
 
             if e.code == 403 and self._rate_limit_remaining == 0:
                 raise RateLimitError(

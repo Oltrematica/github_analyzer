@@ -3,6 +3,11 @@
 This module provides the CSVExporter class for exporting analysis
 results to CSV files. All output formats match the existing tool
 for backward compatibility.
+
+Security features (Feature 006):
+- Path traversal prevention via validate_output_path
+- CSV formula injection protection via escape_csv_row
+- Secure file permissions via set_secure_permissions
 """
 
 from __future__ import annotations
@@ -10,6 +15,12 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from src.github_analyzer.core.security import (
+    escape_csv_row,
+    set_secure_permissions,
+    validate_output_path,
+)
 
 if TYPE_CHECKING:
     from src.github_analyzer.api.models import (
@@ -28,6 +39,11 @@ class CSVExporter:
 
     Creates CSV files in the specified output directory with
     consistent naming and formatting.
+
+    Security:
+        - Output path is validated against path traversal attacks
+        - CSV cell values are escaped to prevent formula injection
+        - Output files are created with restrictive permissions
     """
 
     def __init__(self, output_dir: str | Path) -> None:
@@ -37,8 +53,12 @@ class CSVExporter:
 
         Args:
             output_dir: Directory for output files.
+
+        Raises:
+            ValidationError: If output_dir is outside safe boundary.
         """
-        self._output_dir = Path(output_dir)
+        # Validate output path before creating directory (FR-001)
+        self._output_dir = validate_output_path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def _write_csv(
@@ -48,6 +68,9 @@ class CSVExporter:
         rows: list[dict[str, Any]],
     ) -> Path:
         """Write data to CSV file.
+
+        Applies formula injection protection to all cell values
+        and sets secure file permissions on output.
 
         Args:
             filename: Name of output file.
@@ -61,7 +84,12 @@ class CSVExporter:
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(rows)
+            # Apply formula injection protection to each row (FR-004)
+            for row in rows:
+                writer.writerow(escape_csv_row(row))
+
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     def export_commits(self, commits: list[Commit]) -> Path:

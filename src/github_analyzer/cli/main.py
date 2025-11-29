@@ -6,11 +6,16 @@ orchestrator class that coordinates the analysis workflow.
 Supports multiple data sources:
 - GitHub: Repository analysis with commits, PRs, issues
 - Jira: Issue tracking with comments and metadata
+
+Security features (Feature 006):
+- File permission checks on sensitive files (FR-007)
+- Verbose mode for API audit logging (FR-009)
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import re
 import sys
@@ -35,7 +40,11 @@ from src.github_analyzer.core.exceptions import (
     GitHubAnalyzerError,
     RateLimitError,
 )
+from src.github_analyzer.core.security import check_file_permissions
 from src.github_analyzer.exporters import CSVExporter, JiraExporter
+
+# Module logger for security warnings
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.github_analyzer.api.jira_client import JiraProject
@@ -276,6 +285,11 @@ Examples:
         "--quiet", "-q",
         action="store_true",
         help="Suppress verbose output",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable verbose mode with API audit logging (Feature 006, FR-009)",
     )
     parser.add_argument(
         "--full",
@@ -1265,8 +1279,18 @@ def main() -> int:
         else:
             config.days = prompt_int("How many days to analyze?", config.days)
 
-        # Quiet mode - ask if not provided via CLI
-        if args.quiet:
+        # Verbose mode handling (Feature 006, FR-009)
+        # --verbose/-v flag enables API audit logging
+        # --quiet/-q flag suppresses verbose output
+        if args.verbose:
+            config.verbose = True
+            # Setup logging for verbose mode (FR-009)
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s %(message)s",
+                datefmt="[%H:%M:%S]",
+            )
+        elif args.quiet:
             config.verbose = False
         else:
             config.verbose = not prompt_yes_no("Quiet mode (less output)?", default=False)
@@ -1289,6 +1313,11 @@ def main() -> int:
         # Load GitHub repositories if GitHub source is enabled
         repositories: list[Repository] = []
         if DataSource.GITHUB in sources:
+            # Feature 006 (FR-007): Check file permissions on repos.txt
+            repos_path = Path(config.repos_file)
+            if repos_path.exists():
+                check_file_permissions(repos_path, logger=_logger)
+
             # Use interactive selection (Feature 004 + 005)
             # select_github_repos handles: file loading, empty/missing file prompts
             # Feature 005: Pass days parameter for activity filtering

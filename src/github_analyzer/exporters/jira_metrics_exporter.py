@@ -4,6 +4,11 @@ This module provides the JiraMetricsExporter class for exporting
 aggregated Jira metrics to CSV files following RFC 4180 standards.
 
 Implements: T029, T030, T034, T038 per tasks.md
+
+Security features (Feature 006):
+- Path traversal prevention via validate_output_path
+- CSV formula injection protection via escape_csv_formula
+- Secure file permissions via set_secure_permissions
 """
 
 from __future__ import annotations
@@ -11,6 +16,12 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from src.github_analyzer.core.security import (
+    escape_csv_formula,
+    set_secure_permissions,
+    validate_output_path,
+)
 
 if TYPE_CHECKING:
     from src.github_analyzer.analyzers.jira_metrics import (
@@ -61,6 +72,11 @@ class JiraMetricsExporter:
 
     Creates CSV files in the specified output directory with
     consistent naming and RFC 4180 compliant formatting.
+
+    Security:
+        - Output path is validated against path traversal attacks
+        - CSV cell values are escaped to prevent formula injection
+        - Output files are created with restrictive permissions
     """
 
     def __init__(self, output_dir: str | Path) -> None:
@@ -70,8 +86,12 @@ class JiraMetricsExporter:
 
         Args:
             output_dir: Directory for output files.
+
+        Raises:
+            ValidationError: If output_dir is outside safe boundary.
         """
-        self._output_dir = Path(output_dir)
+        # Validate output path before creating directory (FR-001)
+        self._output_dir = validate_output_path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def export_project_metrics(self, metrics_list: list[ProjectMetrics]) -> Path:
@@ -90,8 +110,9 @@ class JiraMetricsExporter:
             writer.writeheader()
 
             for metrics in metrics_list:
+                # Apply formula injection protection to string fields (FR-004)
                 writer.writerow({
-                    "project_key": metrics.project_key,
+                    "project_key": escape_csv_formula(metrics.project_key),
                     "total_issues": str(metrics.total_issues),
                     "resolved_count": str(metrics.resolved_count),
                     "unresolved_count": str(metrics.unresolved_count),
@@ -107,6 +128,8 @@ class JiraMetricsExporter:
                     "reopen_rate_percent": self._format_float(metrics.reopen_rate_percent),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     def export_person_metrics(self, metrics_list: list[PersonMetrics]) -> Path:
@@ -125,8 +148,9 @@ class JiraMetricsExporter:
             writer.writeheader()
 
             for metrics in metrics_list:
+                # Apply formula injection protection to string fields (FR-004)
                 writer.writerow({
-                    "assignee_name": metrics.assignee_name,
+                    "assignee_name": escape_csv_formula(metrics.assignee_name),
                     "wip_count": str(metrics.wip_count),
                     "resolved_count": str(metrics.resolved_count),
                     "total_assigned": str(metrics.total_assigned),
@@ -134,6 +158,8 @@ class JiraMetricsExporter:
                     "bug_count_assigned": str(metrics.bug_count_assigned),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     def export_type_metrics(self, metrics_list: list[TypeMetrics]) -> Path:
@@ -152,14 +178,17 @@ class JiraMetricsExporter:
             writer.writeheader()
 
             for metrics in metrics_list:
+                # Apply formula injection protection to string fields (FR-004)
                 writer.writerow({
-                    "issue_type": metrics.issue_type,
+                    "issue_type": escape_csv_formula(metrics.issue_type),
                     "count": str(metrics.count),
                     "resolved_count": str(metrics.resolved_count),
                     "avg_cycle_time_days": self._format_float(metrics.avg_cycle_time_days),
                     "bug_resolution_time_avg": self._format_float(metrics.bug_resolution_time_avg),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     @staticmethod
