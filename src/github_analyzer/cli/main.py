@@ -16,7 +16,7 @@ import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from src.github_analyzer.analyzers import (
     CommitAnalyzer,
@@ -619,7 +619,7 @@ def load_github_repos_from_file(repos_file: str) -> list[str]:
         return []
 
 
-def _handle_rate_limit(e: RateLimitError, log) -> None:
+def _handle_rate_limit(e: RateLimitError, log: Callable[[str, str], None]) -> None:
     """Handle rate limit error with wait time display (FR-008, T049).
 
     Per spec Edge Cases: Show wait time to user.
