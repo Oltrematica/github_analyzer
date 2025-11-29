@@ -10,10 +10,57 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator, Optional, Union
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def allow_tmp_path_for_security_validation(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Generator[None, None, None]:
+    """Patch validate_output_path to allow tmp_path as base directory.
+
+    This fixture enables tests to use pytest's tmp_path while
+    still validating that path traversal protection works correctly.
+    The security module's validate_output_path is patched to use tmp_path
+    as the base directory instead of cwd.
+
+    This is applied automatically to all tests to support the security
+    features added in Feature 006.
+    """
+
+    def patched_validate_output_path(
+        path: Union[str, Path],
+        base_dir: Optional[Path] = None,
+    ) -> Path:
+        """Validate path relative to tmp_path for testing."""
+        from src.github_analyzer.core.security import validate_output_path
+
+        # Use tmp_path as the base directory for tests
+        if base_dir is None:
+            base_dir = tmp_path
+
+        return validate_output_path(path, base_dir=base_dir)
+
+    # Patch all modules that use validate_output_path
+    with (
+        patch(
+            "src.github_analyzer.exporters.csv_exporter.validate_output_path",
+            side_effect=patched_validate_output_path,
+        ),
+        patch(
+            "src.github_analyzer.exporters.jira_exporter.validate_output_path",
+            side_effect=patched_validate_output_path,
+        ),
+        patch(
+            "src.github_analyzer.exporters.jira_metrics_exporter.validate_output_path",
+            side_effect=patched_validate_output_path,
+        ),
+    ):
+        yield
 
 
 # Path to fixtures directory

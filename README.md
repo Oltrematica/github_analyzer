@@ -516,9 +516,41 @@ export JIRA_API_TOKEN="your-api-token"
 
 ## Security
 
-- **Token Security**: The GitHub token is loaded from the `GITHUB_TOKEN` environment variable and is never stored, logged, or exposed in error messages
-- **Input Validation**: Repository names are validated against injection attacks (shell metacharacters, path traversal)
-- **No External Dependencies**: Core functionality works with Python standard library only
+This project implements defense-in-depth security measures. See [SECURITY.md](SECURITY.md) for the full security analysis.
+
+### Credential Management
+- **Environment Variables Only**: All credentials (`GITHUB_TOKEN`, `JIRA_API_TOKEN`) loaded exclusively from environment variables
+- **Token Masking**: Tokens are replaced with `[MASKED]` in all logs, errors, and representations
+- **Token Format Validation**: GitHub tokens validated against known patterns (`ghp_`, `github_pat_`, `gho_`, `ghs_`)
+- **No Persistence**: Credentials never written to disk or configuration files
+
+### Input Validation
+- **Whitelist Patterns**: Repository names and Jira project keys validated with strict regex patterns
+- **Dangerous Character Rejection**: Shell metacharacters (`;|&$\`(){}[]<>`) explicitly blocked
+- **Path Traversal Prevention**: `..` sequences rejected in all user inputs
+- **URL Validation**: GitHub URLs normalized, Jira URLs require HTTPS
+- **Length Limits**: Maximum 100 characters per component to prevent buffer attacks
+
+### Network Security
+- **HTTPS Enforced**: All API calls use HTTPS (HTTP rejected for Jira)
+- **Timeout Protection**: Configurable timeouts (default 30s) prevent indefinite hangs
+- **Rate Limit Handling**: Graceful handling with exponential backoff
+- **Retry Logic**: Automatic retry for transient 5xx errors
+
+### Output Security
+- **CSV Formula Injection Protection**: Values starting with `=`, `+`, `-`, `@`, `TAB`, `CR` prefixed with single quote
+- **Path Validation**: Output paths validated to stay within safe boundaries
+- **Secure File Permissions**: Output files created with restricted permissions (owner read/write only)
+- **Symlink Resolution**: All paths resolved to prevent symlink attacks
+
+### Error Handling
+- **No Secret Leakage**: Error messages never contain tokens or credentials
+- **Response Truncation**: API error details truncated to 200 characters
+- **Structured Exceptions**: Typed exceptions without exposing internals
+
+### Minimal Dependencies
+- **Zero Required Dependencies**: Core functionality uses Python standard library only
+- **Optional `requests`**: Falls back gracefully to `urllib` if not installed
 
 ## Contributing
 

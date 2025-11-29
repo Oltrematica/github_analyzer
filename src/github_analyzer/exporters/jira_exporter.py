@@ -4,6 +4,11 @@ This module provides the JiraExporter class for exporting Jira
 issues and comments to CSV files following RFC 4180 standards.
 
 Extended in Feature 003 to support quality metrics columns.
+
+Security features (Feature 006):
+- Path traversal prevention via validate_output_path
+- CSV formula injection protection via escape_csv_formula
+- Secure file permissions via set_secure_permissions
 """
 
 from __future__ import annotations
@@ -11,6 +16,12 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from src.github_analyzer.core.security import (
+    escape_csv_formula,
+    set_secure_permissions,
+    validate_output_path,
+)
 
 if TYPE_CHECKING:
     from src.github_analyzer.analyzers.jira_metrics import IssueMetrics
@@ -61,6 +72,11 @@ class JiraExporter:
 
     Creates CSV files in the specified output directory with
     consistent naming and RFC 4180 compliant formatting.
+
+    Security:
+        - Output path is validated against path traversal attacks
+        - CSV cell values are escaped to prevent formula injection
+        - Output files are created with restrictive permissions
     """
 
     def __init__(self, output_dir: str | Path) -> None:
@@ -70,8 +86,12 @@ class JiraExporter:
 
         Args:
             output_dir: Directory for output files.
+
+        Raises:
+            ValidationError: If output_dir is outside safe boundary.
         """
-        self._output_dir = Path(output_dir)
+        # Validate output path before creating directory (FR-001)
+        self._output_dir = validate_output_path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def export_issues(self, issues: list[JiraIssue]) -> Path:
@@ -90,21 +110,24 @@ class JiraExporter:
             writer.writeheader()
 
             for issue in issues:
+                # Apply formula injection protection (FR-004)
                 writer.writerow({
-                    "key": issue.key,
-                    "summary": issue.summary,
-                    "description": issue.description,
-                    "status": issue.status,
-                    "issue_type": issue.issue_type,
-                    "priority": issue.priority or "",
-                    "assignee": issue.assignee or "",
-                    "reporter": issue.reporter,
+                    "key": escape_csv_formula(issue.key),
+                    "summary": escape_csv_formula(issue.summary),
+                    "description": escape_csv_formula(issue.description),
+                    "status": escape_csv_formula(issue.status),
+                    "issue_type": escape_csv_formula(issue.issue_type),
+                    "priority": escape_csv_formula(issue.priority or ""),
+                    "assignee": escape_csv_formula(issue.assignee or ""),
+                    "reporter": escape_csv_formula(issue.reporter),
                     "created": issue.created.isoformat() if issue.created else "",
                     "updated": issue.updated.isoformat() if issue.updated else "",
                     "resolution_date": issue.resolution_date.isoformat() if issue.resolution_date else "",
-                    "project_key": issue.project_key,
+                    "project_key": escape_csv_formula(issue.project_key),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     def export_comments(self, comments: list[JiraComment]) -> Path:
@@ -123,14 +146,17 @@ class JiraExporter:
             writer.writeheader()
 
             for comment in comments:
+                # Apply formula injection protection (FR-004)
                 writer.writerow({
-                    "id": comment.id,
-                    "issue_key": comment.issue_key,
-                    "author": comment.author,
+                    "id": escape_csv_formula(comment.id),
+                    "issue_key": escape_csv_formula(comment.issue_key),
+                    "author": escape_csv_formula(comment.author),
                     "created": comment.created.isoformat() if comment.created else "",
-                    "body": comment.body,
+                    "body": escape_csv_formula(comment.body),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     def export_issues_with_metrics(self, metrics_list: list[IssueMetrics]) -> Path:
@@ -158,21 +184,22 @@ class JiraExporter:
 
             for metrics in metrics_list:
                 issue = metrics.issue
+                # Apply formula injection protection (FR-004)
                 writer.writerow({
                     # Original columns
-                    "key": issue.key,
-                    "summary": issue.summary,
-                    "description": issue.description,
-                    "status": issue.status,
-                    "issue_type": issue.issue_type,
-                    "priority": issue.priority or "",
-                    "assignee": issue.assignee or "",
-                    "reporter": issue.reporter,
+                    "key": escape_csv_formula(issue.key),
+                    "summary": escape_csv_formula(issue.summary),
+                    "description": escape_csv_formula(issue.description),
+                    "status": escape_csv_formula(issue.status),
+                    "issue_type": escape_csv_formula(issue.issue_type),
+                    "priority": escape_csv_formula(issue.priority or ""),
+                    "assignee": escape_csv_formula(issue.assignee or ""),
+                    "reporter": escape_csv_formula(issue.reporter),
                     "created": issue.created.isoformat() if issue.created else "",
                     "updated": issue.updated.isoformat() if issue.updated else "",
                     "resolution_date": issue.resolution_date.isoformat() if issue.resolution_date else "",
-                    "project_key": issue.project_key,
-                    # Metric columns
+                    "project_key": escape_csv_formula(issue.project_key),
+                    # Metric columns (numeric - no escaping needed)
                     "cycle_time_days": self._format_float(metrics.cycle_time_days),
                     "aging_days": self._format_float(metrics.aging_days),
                     "comments_count": str(metrics.comments_count),
@@ -185,6 +212,8 @@ class JiraExporter:
                     "reopen_count": str(metrics.reopen_count),
                 })
 
+        # Set secure file permissions (FR-008)
+        set_secure_permissions(filepath)
         return filepath
 
     @staticmethod
