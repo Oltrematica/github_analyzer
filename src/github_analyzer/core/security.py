@@ -90,21 +90,11 @@ def validate_output_path(
 
     # Resolve both paths to handle symlinks (FR-013)
     resolved_base = base_dir.resolve()
+    resolved_path = (resolved_base / Path(path)).resolve()
 
-    # Convert path to Path object
-    path_obj = Path(path)
-
-    # For relative paths, resolve against the base directory
-    if not path_obj.is_absolute():
-        resolved_path = (resolved_base / path_obj).resolve()
-    else:
-        resolved_path = path_obj.resolve()
-
-    # Check if path is within safe boundary
-    try:
-        resolved_path.relative_to(resolved_base)
-    except ValueError as err:
-        raise ValidationError(f"Output path must be within {resolved_base}") from err
+    # Check if path is within safe boundary (Python 3.9+)
+    if not resolved_path.is_relative_to(resolved_base):
+        raise ValidationError(f"Output path must be within {resolved_base}")
 
     return resolved_path
 
