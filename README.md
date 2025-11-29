@@ -20,11 +20,14 @@ A powerful Python command-line tool for analyzing GitHub repositories and Jira p
 - **Quality Metrics** - Assess code quality through revert ratios, review coverage, and commit message analysis
 - **Productivity Scoring** - Calculate composite productivity scores for contributors across repositories
 
-### Jira Integration (NEW)
+### Jira Integration
 - **Jira Issue Extraction** - Extract issues and comments from Jira Cloud and Server/Data Center
+- **Quality Metrics** - Calculate 10 quality metrics per issue including cycle time, description quality, collaboration scores
+- **Aggregated Reports** - Generate project-level, person-level, and issue-type summaries
 - **Multi-Project Support** - Analyze multiple Jira projects with interactive project selection
 - **Time-Based Filtering** - Filter issues by update date using JQL queries
 - **Comment Tracking** - Export all issue comments with author and timestamp
+- **Reopen Tracking** - Detect reopened issues via changelog API (best-effort, graceful degradation)
 - **ADF Support** - Automatically converts Atlassian Document Format to plain text
 
 ### Core Features
@@ -222,12 +225,15 @@ The analyzer generates CSV files in the output directory. GitHub outputs are alw
 | `productivity_analysis.csv` | Per-contributor productivity metrics and scores |
 | `contributors_summary.csv` | Contributor overview with commit and PR statistics |
 
-**Jira outputs (2 files):**
+**Jira outputs (5 files):**
 
 | File | Description |
 |------|-------------|
-| `jira_issues_export.csv` | Jira issues with key, summary, status, type, priority, assignee, reporter, dates |
+| `jira_issues_export.csv` | Jira issues with 12 base fields + 10 quality metrics per issue |
 | `jira_comments_export.csv` | Jira issue comments with issue key, author, date, body |
+| `jira_project_metrics.csv` | Aggregated metrics per project (cycle time, bug ratio, quality scores) |
+| `jira_person_metrics.csv` | Per-assignee metrics (WIP count, resolved count, avg cycle time) |
+| `jira_type_metrics.csv` | Per-issue-type metrics (counts, avg cycle time, bug resolution time) |
 
 ### CSV Field Details
 
@@ -267,9 +273,79 @@ first_activity, last_activity, active_days, consistency_pct,
 productivity_score
 ```
 
-## Quality Metrics Explained
+#### jira_issues_export.csv
+```
+key, summary, description, status, issue_type, priority, assignee, reporter,
+created, updated, resolution_date, project_key,
+cycle_time_days, aging_days, comments_count, description_quality_score,
+acceptance_criteria_present, comment_velocity_hours, silent_issue,
+same_day_resolution, cross_team_score, reopen_count
+```
 
-The analyzer calculates several quality indicators:
+#### jira_project_metrics.csv
+```
+project_key, total_issues, resolved_count, unresolved_count,
+avg_cycle_time_days, median_cycle_time_days, bug_count, bug_ratio_percent,
+same_day_resolution_rate_percent, avg_description_quality,
+silent_issues_ratio_percent, avg_comments_per_issue,
+avg_comment_velocity_hours, reopen_rate_percent
+```
+
+#### jira_person_metrics.csv
+```
+assignee_name, wip_count, resolved_count, total_assigned,
+avg_cycle_time_days, bug_count_assigned
+```
+
+#### jira_type_metrics.csv
+```
+issue_type, count, resolved_count, avg_cycle_time_days,
+bug_resolution_time_avg
+```
+
+## Jira Quality Metrics Explained
+
+The analyzer calculates 10 quality metrics for each Jira issue:
+
+| Metric | Description | Value |
+|--------|-------------|-------|
+| **cycle_time_days** | Days from created to resolution | Float (empty if open) |
+| **aging_days** | Days since creation for open issues | Float (empty if resolved) |
+| **comments_count** | Total number of comments | Integer |
+| **description_quality_score** | Quality score based on length, AC, formatting | 0-100 |
+| **acceptance_criteria_present** | AC patterns detected (Given/When/Then, checkboxes) | true/false |
+| **comment_velocity_hours** | Hours from creation to first comment | Float (empty if silent) |
+| **silent_issue** | No comments exist | true/false |
+| **same_day_resolution** | Resolved on same day as created | true/false |
+| **cross_team_score** | Collaboration score based on distinct commenters | 0-100 |
+| **reopen_count** | Times reopened (Done→non-Done transitions) | Integer |
+
+### Description Quality Score Calculation
+
+The quality score (0-100) uses balanced weighting:
+
+| Component | Weight | Criteria |
+|-----------|--------|----------|
+| **Length** | 40% | Linear scale: 100+ chars = full score |
+| **Acceptance Criteria** | 40% | Detected patterns: Given/When/Then, AC:, checkboxes |
+| **Formatting** | 20% | Headers (10%) + Lists (10%) detected |
+
+### Cross-Team Collaboration Score
+
+Based on distinct comment authors:
+
+| Authors | Score |
+|---------|-------|
+| 0 | 0 |
+| 1 | 25 |
+| 2 | 50 |
+| 3 | 75 |
+| 4 | 90 |
+| 5+ | 100 |
+
+## GitHub Quality Metrics Explained
+
+The analyzer calculates several quality indicators for GitHub repositories:
 
 | Metric | Description | Ideal |
 |--------|-------------|-------|

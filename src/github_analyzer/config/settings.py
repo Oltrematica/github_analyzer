@@ -20,6 +20,42 @@ from typing import Any
 
 from src.github_analyzer.core.exceptions import ConfigurationError, ValidationError, mask_token
 
+# =============================================================================
+# Jira Quality Metrics Configuration Constants (Feature 003)
+# =============================================================================
+
+# Description Quality Score weights (FR-004)
+# Total must equal 100
+QUALITY_WEIGHT_LENGTH = 40      # Max points for description length
+QUALITY_WEIGHT_AC = 40          # Points for acceptance criteria presence
+QUALITY_WEIGHT_FORMAT = 20      # Max points for formatting (headers + lists)
+QUALITY_LENGTH_THRESHOLD = 100  # Chars needed for full length score
+
+# Cross-team Score scale (FR-009)
+# Maps number of distinct comment authors to collaboration score
+CROSS_TEAM_SCALE: dict[int, int] = {
+    0: 0,
+    1: 25,
+    2: 50,
+    3: 75,
+    4: 90,
+    # 5+ authors = 100 (handled in code)
+}
+
+# Acceptance Criteria detection patterns (FR-005)
+# Regex patterns to identify AC in descriptions
+AC_PATTERNS: list[str] = [
+    r'(?is)\bgiven\b.*\bwhen\b.*\bthen\b',     # BDD/Gherkin style (DOTALL for multiline)
+    r'(?i)^#+\s*acceptance\s+criteria',         # Markdown heading
+    r'(?i)^ac\s*:',                             # AC: prefix
+    r'(?i)acceptance\s+criteria\s*:',           # Full label
+    r'^\s*[-*]\s*\[\s*[x ]?\s*\]',              # Checkbox list (markdown)
+]
+
+# Done status categories for reopen detection (FR-022)
+# Issues transitioning FROM these statuses TO non-done = reopen
+DONE_STATUSES: set[str] = {'Done', 'Closed', 'Resolved', 'Complete', 'Completed'}
+
 
 class DataSource(Enum):
     """Supported data sources for the analyzer.

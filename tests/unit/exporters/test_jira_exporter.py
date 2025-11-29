@@ -467,3 +467,221 @@ class TestStreamingExport:
             rows = list(reader)
 
         assert len(rows) == 1000
+
+
+# =============================================================================
+# T015: Tests for extended CSV export columns with metrics (Feature 003)
+# =============================================================================
+
+
+class TestExtendedIssueExport:
+    """Tests for export_issues_with_metrics method (FR-003 extended export)."""
+
+    def test_exports_all_metric_columns(self, tmp_path: Path) -> None:
+        """Extended export includes all 10 new metric columns."""
+        from src.github_analyzer.analyzers.jira_metrics import IssueMetrics
+        from src.github_analyzer.exporters.jira_exporter import (
+            EXTENDED_ISSUE_COLUMNS,
+            JiraExporter,
+        )
+
+        now = datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc)
+        issue = JiraIssue(
+            key="PROJ-1",
+            summary="Test issue",
+            description="Test description",
+            status="Done",
+            issue_type="Story",
+            priority="High",
+            assignee="John Doe",
+            reporter="Jane Smith",
+            created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+            updated=now,
+            resolution_date=now,
+            project_key="PROJ",
+        )
+
+        metrics = IssueMetrics(
+            issue=issue,
+            cycle_time_days=14.0,
+            aging_days=None,
+            comments_count=5,
+            description_quality_score=75,
+            acceptance_criteria_present=True,
+            comment_velocity_hours=24.5,
+            silent_issue=False,
+            same_day_resolution=False,
+            cross_team_score=75,
+            reopen_count=1,
+        )
+
+        exporter = JiraExporter(tmp_path)
+        result = exporter.export_issues_with_metrics([metrics])
+
+        with open(result, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            assert reader.fieldnames == list(EXTENDED_ISSUE_COLUMNS)
+
+    def test_metric_values_correct_format(self, tmp_path: Path) -> None:
+        """Metric values are formatted correctly (2 decimal floats, lowercase booleans)."""
+        from src.github_analyzer.analyzers.jira_metrics import IssueMetrics
+        from src.github_analyzer.exporters.jira_exporter import JiraExporter
+
+        now = datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc)
+        issue = JiraIssue(
+            key="PROJ-1",
+            summary="Test issue",
+            description="Test description",
+            status="Done",
+            issue_type="Story",
+            priority="High",
+            assignee="John Doe",
+            reporter="Jane Smith",
+            created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+            updated=now,
+            resolution_date=now,
+            project_key="PROJ",
+        )
+
+        metrics = IssueMetrics(
+            issue=issue,
+            cycle_time_days=14.25,
+            aging_days=None,
+            comments_count=5,
+            description_quality_score=75,
+            acceptance_criteria_present=True,
+            comment_velocity_hours=24.5,
+            silent_issue=False,
+            same_day_resolution=False,
+            cross_team_score=75,
+            reopen_count=1,
+        )
+
+        exporter = JiraExporter(tmp_path)
+        result = exporter.export_issues_with_metrics([metrics])
+
+        with open(result, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+
+        # Check float format (2 decimals)
+        assert row["cycle_time_days"] == "14.25"
+        assert row["comment_velocity_hours"] == "24.50"
+
+        # Check integer format
+        assert row["comments_count"] == "5"
+        assert row["description_quality_score"] == "75"
+        assert row["cross_team_score"] == "75"
+        assert row["reopen_count"] == "1"
+
+        # Check boolean format (lowercase)
+        assert row["acceptance_criteria_present"] == "true"
+        assert row["silent_issue"] == "false"
+        assert row["same_day_resolution"] == "false"
+
+    def test_none_values_as_empty_string(self, tmp_path: Path) -> None:
+        """None metric values are exported as empty strings."""
+        from src.github_analyzer.analyzers.jira_metrics import IssueMetrics
+        from src.github_analyzer.exporters.jira_exporter import JiraExporter
+
+        now = datetime(2025, 11, 15, 10, 0, 0, tzinfo=timezone.utc)
+        issue = JiraIssue(
+            key="PROJ-1",
+            summary="Open issue",
+            description="",
+            status="Open",
+            issue_type="Task",
+            priority=None,
+            assignee=None,
+            reporter="Jane Smith",
+            created=datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc),
+            updated=now,
+            resolution_date=None,
+            project_key="PROJ",
+        )
+
+        metrics = IssueMetrics(
+            issue=issue,
+            cycle_time_days=None,  # Open issue, no cycle time
+            aging_days=14.0,
+            comments_count=0,
+            description_quality_score=0,
+            acceptance_criteria_present=False,
+            comment_velocity_hours=None,  # Silent issue
+            silent_issue=True,
+            same_day_resolution=False,
+            cross_team_score=0,
+            reopen_count=0,
+        )
+
+        exporter = JiraExporter(tmp_path)
+        result = exporter.export_issues_with_metrics([metrics])
+
+        with open(result, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+
+        # None values should be empty strings
+        assert row["cycle_time_days"] == ""
+        assert row["comment_velocity_hours"] == ""
+        assert row["priority"] == ""
+        assert row["assignee"] == ""
+
+        # Aging should have value
+        assert row["aging_days"] == "14.00"
+
+    def test_preserves_original_columns(self, tmp_path: Path) -> None:
+        """Extended export preserves all original issue columns."""
+        from src.github_analyzer.analyzers.jira_metrics import IssueMetrics
+        from src.github_analyzer.exporters.jira_exporter import JiraExporter
+
+        created = datetime(2025, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+        resolved = datetime(2025, 11, 15, 16, 0, 0, tzinfo=timezone.utc)
+        issue = JiraIssue(
+            key="PROJ-123",
+            summary="Test summary",
+            description="Test description with details",
+            status="Done",
+            issue_type="Bug",
+            priority="Critical",
+            assignee="Alice Johnson",
+            reporter="Bob Wilson",
+            created=created,
+            updated=resolved,
+            resolution_date=resolved,
+            project_key="MYPROJ",
+        )
+
+        metrics = IssueMetrics(
+            issue=issue,
+            cycle_time_days=14.25,
+            aging_days=None,
+            comments_count=3,
+            description_quality_score=60,
+            acceptance_criteria_present=False,
+            comment_velocity_hours=12.0,
+            silent_issue=False,
+            same_day_resolution=False,
+            cross_team_score=50,
+            reopen_count=0,
+        )
+
+        exporter = JiraExporter(tmp_path)
+        result = exporter.export_issues_with_metrics([metrics])
+
+        with open(result, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+
+        # Check original columns preserved
+        assert row["key"] == "PROJ-123"
+        assert row["summary"] == "Test summary"
+        assert row["description"] == "Test description with details"
+        assert row["status"] == "Done"
+        assert row["issue_type"] == "Bug"
+        assert row["priority"] == "Critical"
+        assert row["assignee"] == "Alice Johnson"
+        assert row["reporter"] == "Bob Wilson"
+        assert row["project_key"] == "MYPROJ"
+        assert "2025-11-01" in row["created"]
+        assert "2025-11-15" in row["resolution_date"]

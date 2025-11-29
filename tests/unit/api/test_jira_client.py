@@ -1104,3 +1104,75 @@ class TestJiraDataclasses:
         assert comment.id == "10001"
         assert comment.issue_key == "PROJ-1"
         assert comment.body == "This is a comment."
+
+
+# =============================================================================
+# T040: Tests for changelog API (FR-022)
+# =============================================================================
+
+
+class TestGetIssueChangelog:
+    """Tests for JiraClient.get_issue_changelog."""
+
+    def test_get_changelog_success(self, jira_config: JiraConfig) -> None:
+        """Given valid issue, return changelog entries."""
+        from src.github_analyzer.api.jira_client import JiraClient
+        from tests.fixtures.jira_responses import CHANGELOG_WITH_REOPEN
+
+        client = JiraClient(jira_config)
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = CHANGELOG_WITH_REOPEN
+            result = client.get_issue_changelog("PROJ-123")
+
+        assert len(result) == 4  # 4 status transitions in fixture
+        assert result[0]["items"][0]["field"] == "status"
+
+    def test_get_changelog_403_returns_empty(self, jira_config: JiraConfig) -> None:
+        """Given 403 permission error, return empty list (graceful degradation)."""
+        from src.github_analyzer.api.jira_client import JiraClient
+
+        client = JiraClient(jira_config)
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.side_effect = JiraPermissionError("Access denied")
+            result = client.get_issue_changelog("PROJ-123")
+
+        assert result == []
+
+    def test_get_changelog_404_returns_empty(self, jira_config: JiraConfig) -> None:
+        """Given 404 not found, return empty list (graceful degradation)."""
+        from src.github_analyzer.api.jira_client import JiraClient
+
+        client = JiraClient(jira_config)
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.side_effect = JiraNotFoundError("Issue not found")
+            result = client.get_issue_changelog("PROJ-123")
+
+        assert result == []
+
+    def test_get_changelog_empty_response(self, jira_config: JiraConfig) -> None:
+        """Given empty changelog, return empty list."""
+        from src.github_analyzer.api.jira_client import JiraClient
+        from tests.fixtures.jira_responses import CHANGELOG_EMPTY
+
+        client = JiraClient(jira_config)
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = CHANGELOG_EMPTY
+            result = client.get_issue_changelog("PROJ-123")
+
+        assert result == []
+
+    def test_get_changelog_other_api_error_propagates(self, jira_config: JiraConfig) -> None:
+        """Given other API error (500), propagate exception."""
+        from src.github_analyzer.api.jira_client import JiraClient
+
+        client = JiraClient(jira_config)
+
+        with mock.patch.object(client, "_make_request") as mock_request:
+            mock_request.side_effect = JiraAPIError("Server error", status_code=500)
+
+            with pytest.raises(JiraAPIError):
+                client.get_issue_changelog("PROJ-123")
