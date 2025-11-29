@@ -696,8 +696,8 @@ def main() -> int:
         # Run Jira extraction with quality metrics (Feature 003)
         if DataSource.JIRA in sources and jira_config and project_keys:
             output.log("Starting Jira extraction...", "info")
-            from src.github_analyzer.analyzers.jira_metrics import MetricsCalculator
-            from src.github_analyzer.api.jira_client import JiraClient
+            from src.github_analyzer.analyzers.jira_metrics import IssueMetrics, MetricsCalculator
+            from src.github_analyzer.api.jira_client import JiraClient, JiraComment
             from src.github_analyzer.exporters.jira_metrics_exporter import JiraMetricsExporter
 
             client = JiraClient(jira_config)
@@ -710,7 +710,7 @@ def main() -> int:
 
             output.log("Fetching comments...", "info")
             all_comments = []
-            issue_comments_map: dict[str, list] = {}  # Map issue key to comments
+            issue_comments_map: dict[str, list[JiraComment]] = {}  # Map issue key to comments
             for issue in all_issues:
                 comments = client.get_comments(issue.key)
                 all_comments.extend(comments)
@@ -741,7 +741,7 @@ def main() -> int:
 
             # Export aggregated metrics (project, person, type summaries)
             # Group issues by project for project-level aggregation
-            issues_by_project: dict[str, list] = {}
+            issues_by_project: dict[str, list[IssueMetrics]] = {}
             for m in issue_metrics:
                 proj_key = m.issue.project_key
                 if proj_key not in issues_by_project:
