@@ -935,9 +935,10 @@ def select_github_repos(
                     else:
                         log("Invalid selection.", "warning")
 
-                except RateLimitError:
+                except RateLimitError as e:
                     # Feature 005 FR-008: Fallback to unfiltered mode on rate limit
-                    log("⚠️ Search API rate limit exceeded. Showing all repositories without activity filter.", "warning")
+                    _handle_rate_limit(e, log)
+                    log("Showing all repositories without activity filter.", "info")
                     try:
                         all_org_repos = client.list_org_repos(org_name)
                         if all_org_repos:
