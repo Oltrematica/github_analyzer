@@ -548,6 +548,38 @@ class JiraClient:
 
         return comments
 
+    def get_issue_changelog(self, issue_key: str) -> list[dict[str, Any]]:
+        """Get changelog entries for an issue.
+
+        Used for detecting reopens (status transitions from Done to non-Done).
+        Implements best-effort retrieval with graceful degradation:
+        - Returns empty list on 403 (permission denied)
+        - Returns empty list on 404 (issue not found)
+        - Other errors are propagated
+
+        Args:
+            issue_key: The issue key (e.g., PROJ-123).
+
+        Returns:
+            List of changelog entries with status transitions.
+            Empty list if access denied or issue not found.
+
+        Raises:
+            JiraAPIError: For server errors (5xx) or other failures.
+        """
+        try:
+            response = self._make_request(
+                "GET",
+                f"/rest/api/{self.api_version}/issue/{issue_key}/changelog",
+            )
+            values: list[dict[str, Any]] = response.get("values", [])
+            return values
+
+        except (JiraPermissionError, JiraNotFoundError):
+            # Graceful degradation per spec assumptions:
+            # "If API returns 403 (permissions) or 404, reopen_count defaults to 0"
+            return []
+
     def _parse_datetime(self, value: str | None) -> datetime | None:
         """Parse Jira datetime string to datetime object.
 

@@ -693,10 +693,12 @@ def main() -> int:
             finally:
                 analyzer.close()
 
-        # Run Jira extraction
+        # Run Jira extraction with quality metrics (Feature 003)
         if DataSource.JIRA in sources and jira_config and project_keys:
             output.log("Starting Jira extraction...", "info")
-            from src.github_analyzer.api.jira_client import JiraClient
+            from src.github_analyzer.analyzers.jira_metrics import IssueMetrics, MetricsCalculator
+            from src.github_analyzer.api.jira_client import JiraClient, JiraComment
+            from src.github_analyzer.exporters.jira_metrics_exporter import JiraMetricsExporter
 
             client = JiraClient(jira_config)
             since = datetime.now(timezone.utc) - timedelta(days=config.days)
@@ -708,17 +710,58 @@ def main() -> int:
 
             output.log("Fetching comments...", "info")
             all_comments = []
+            issue_comments_map: dict[str, list[JiraComment]] = {}  # Map issue key to comments
             for issue in all_issues:
                 comments = client.get_comments(issue.key)
                 all_comments.extend(comments)
+                issue_comments_map[issue.key] = comments
             output.log(f"Found {len(all_comments)} comments", "success")
 
-            # Export Jira data to CSV
+            # Calculate quality metrics for each issue (Feature 003)
+            output.log("Calculating quality metrics...", "info")
+            calculator = MetricsCalculator()
+            issue_metrics = []
+            for issue in all_issues:
+                comments = issue_comments_map.get(issue.key, [])
+                # Best-effort changelog retrieval (gracefully handles 403/404)
+                changelog = client.get_issue_changelog(issue.key)
+                metrics = calculator.calculate_issue_metrics(issue, comments, changelog)
+                issue_metrics.append(metrics)
+            output.log(f"Calculated metrics for {len(issue_metrics)} issues", "success")
+
+            # Export Jira data to CSV with metrics
             jira_exporter = JiraExporter(config.output_dir)
-            issues_file = jira_exporter.export_issues(all_issues)
+            metrics_exporter = JiraMetricsExporter(config.output_dir)
+
+            # Export issues with embedded metrics (extended CSV)
+            issues_file = jira_exporter.export_issues_with_metrics(issue_metrics)
             comments_file = jira_exporter.export_comments(all_comments)
             output.log(f"Exported Jira issues to {issues_file}", "success")
             output.log(f"Exported Jira comments to {comments_file}", "success")
+
+            # Export aggregated metrics (project, person, type summaries)
+            # Group issues by project for project-level aggregation
+            issues_by_project: dict[str, list[IssueMetrics]] = {}
+            for m in issue_metrics:
+                proj_key = m.issue.project_key
+                if proj_key not in issues_by_project:
+                    issues_by_project[proj_key] = []
+                issues_by_project[proj_key].append(m)
+
+            project_metrics = [
+                calculator.aggregate_project_metrics(metrics, proj_key)
+                for proj_key, metrics in issues_by_project.items()
+            ]
+            person_metrics = calculator.aggregate_person_metrics(issue_metrics)
+            type_metrics = calculator.aggregate_type_metrics(issue_metrics)
+
+            project_file = metrics_exporter.export_project_metrics(project_metrics)
+            person_file = metrics_exporter.export_person_metrics(person_metrics)
+            type_file = metrics_exporter.export_type_metrics(type_metrics)
+
+            output.log(f"Exported project metrics to {project_file}", "success")
+            output.log(f"Exported person metrics to {person_file}", "success")
+            output.log(f"Exported type metrics to {type_file}", "success")
 
         return 0
 
