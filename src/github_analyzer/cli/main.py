@@ -636,6 +636,71 @@ def _handle_rate_limit(e: RateLimitError, log: Callable[[str, str], None]) -> No
         log("Rate limit exceeded. Please try again later.", "warning")
 
 
+def _handle_zero_active_repos(
+    repos: list[dict],
+    days: int,
+    total_count: int,
+) -> tuple[list[dict] | None, int | None, bool]:
+    """Handle zero active repositories scenario with options (FR-009).
+
+    Per spec Edge Case #1 and FR-009: When no repos have activity in the
+    analysis period, offer user three options:
+    [1] Include all repos - proceed with unfiltered repos
+    [2] Adjust timeframe - prompt for new days value and refilter
+    [3] Cancel - return to menu
+
+    Args:
+        repos: Full list of repositories (unfiltered).
+        days: Current timeframe in days.
+        total_count: Total number of repos for display.
+
+    Returns:
+        Tuple of (active_repos, new_days, should_exit):
+        - (repos, days, False): Use all repos with current days (option 1)
+        - (filtered_repos, new_days, False): Refiltered repos with new timeframe (option 2)
+        - (None, None, False): User cancelled (option 3) - return to menu
+        - (None, None, True): EOF/KeyboardInterrupt - exit completely
+    """
+    print(f"⚠️ No repositories have been pushed to in the last {days} days.")
+    print("Options:")
+    print(f"  [1] Include all {total_count} repositories anyway")
+    print(f"  [2] Adjust timeframe (currently {days} days)")
+    print("  [3] Cancel")
+
+    try:
+        zero_choice = input("\nYour choice: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return None, None, True  # Exit completely
+
+    if zero_choice == "1":
+        # Include all repos
+        return repos, days, False
+    elif zero_choice == "2":
+        # Adjust timeframe
+        try:
+            new_days_input = input("Enter new timeframe in days: ").strip()
+            new_days = int(new_days_input)
+            if new_days <= 0:
+                print("Invalid number of days. Must be positive.")
+                return None, None, False  # Return to menu
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return None, None, False  # Return to menu
+        except (EOFError, KeyboardInterrupt):
+            return None, None, True  # Exit completely
+
+        # Refilter with new timeframe
+        print("\nRechecking...")
+        new_cutoff = get_cutoff_date(new_days)
+        new_active = filter_by_activity(repos, new_cutoff)
+        display_activity_stats(total=total_count, active=len(new_active), days=new_days)
+
+        return new_active, new_days, False
+    else:
+        # Cancel (option 3 or any other input)
+        return None, None, False  # Return to menu
+
+
 def select_github_repos(
     repos_file: str,
     github_token: str,
@@ -720,16 +785,18 @@ def select_github_repos(
                     display_activity_stats(total=len(repos), active=len(active_repos), days=days)
 
                     # Handle zero active repos (FR-009)
+                    current_days = days
                     if not active_repos:
-                        print(f"⚠️ No repositories have been pushed to in the last {days} days.")
-                        try:
-                            zero_choice = input("Options: [1] Include all repos, [2] Cancel: ").strip()
-                        except (EOFError, KeyboardInterrupt):
-                            return []
-                        if zero_choice == "1":
-                            active_repos = repos
-                        else:
-                            continue
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            repos, current_days, len(repos)
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
 
                     # Confirmation prompt (FR-006)
                     try:
@@ -821,16 +888,18 @@ def select_github_repos(
                         print("⚠️ Results may be incomplete due to API limitations.")
 
                     # Handle zero active repos (FR-009)
+                    current_days = days
                     if not active_repos:
-                        print(f"⚠️ No organization repositories have been pushed to in the last {days} days.")
-                        try:
-                            zero_choice = input("Options: [1] Show all repos, [2] Cancel: ").strip()
-                        except (EOFError, KeyboardInterrupt):
-                            return []
-                        if zero_choice == "1":
-                            active_repos = all_org_repos
-                        else:
-                            continue
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            all_org_repos, current_days, total_count
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
 
                     # Confirmation prompt (FR-006)
                     try:
@@ -907,16 +976,18 @@ def select_github_repos(
                     display_activity_stats(total=len(repos), active=len(active_repos), days=days)
 
                     # Handle zero active repos (FR-009)
+                    current_days = days
                     if not active_repos:
-                        print(f"⚠️ No repositories have been pushed to in the last {days} days.")
-                        try:
-                            zero_choice = input("Options: [1] Show all repos, [2] Cancel: ").strip()
-                        except (EOFError, KeyboardInterrupt):
-                            return []
-                        if zero_choice == "1":
-                            active_repos = repos
-                        else:
-                            continue
+                        result_repos, new_days, should_exit = _handle_zero_active_repos(
+                            repos, current_days, len(repos)
+                        )
+                        if should_exit:
+                            return []  # EOF/KeyboardInterrupt - exit completely
+                        if result_repos is None:
+                            continue  # User cancelled - return to menu
+                        active_repos = result_repos
+                        if new_days is not None:
+                            current_days = new_days
 
                     # Confirmation prompt (FR-006) - ask before showing list
                     try:

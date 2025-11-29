@@ -465,7 +465,7 @@ class TestZeroActiveReposWarning:
         assert "user/old2" in result
 
     def test_zero_active_repos_cancel_option(self, tmp_path):
-        """Test zero active repos with option 2 (cancel) returns to menu."""
+        """Test zero active repos with option 3 (cancel) returns to menu."""
         import os
 
         from src.github_analyzer.api.client import GitHubClient
@@ -484,8 +484,8 @@ class TestZeroActiveReposWarning:
         with (
             patch.object(main_module, "GitHubClient", return_value=mock_client),
             patch.dict(os.environ, github_env, clear=True),
-            # Option A, then "2" to cancel, then Q to quit
-            patch("builtins.input", side_effect=["A", "2", "Q"]),
+            # Option A, then "3" to cancel (FR-009), then Q to quit
+            patch("builtins.input", side_effect=["A", "3", "Q"]),
         ):
             result = select_github_repos(
                 str(repos_file),
@@ -526,6 +526,249 @@ class TestZeroActiveReposWarning:
             )
 
         assert result == []
+
+
+class TestAdjustTimeframeOption:
+    """Tests for FR-009 'Adjust timeframe' option in zero active repos menu."""
+
+    def test_adjust_timeframe_refilters_repos(self, tmp_path):
+        """Test option 2 (adjust timeframe) refilters repos with new days."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        # Mix of repos: one very old, one recent (but not active in 7 days)
+        # The "recent" repo should become active when we extend to 60 days
+        repos = [
+            {"full_name": "user/old", "pushed_at": "2020-01-01T10:00:00Z"},
+            {"full_name": "user/recent", "pushed_at": "2025-10-15T10:00:00Z"},  # ~45 days ago
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, zero repos in 7 days -> "2" to adjust, "60" new days, "Y" confirm
+            patch("builtins.input", side_effect=["A", "2", "60", "Y"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+                days=7,  # Initial filter: 7 days
+            )
+
+        # Should include the "recent" repo after extending to 60 days
+        assert len(result) == 1
+        assert "user/recent" in result
+
+    def test_adjust_timeframe_shows_new_stats(self, tmp_path, capsys):
+        """Test adjust timeframe displays new activity stats."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        repos = [
+            {"full_name": "user/old", "pushed_at": "2020-01-01T10:00:00Z"},
+            {"full_name": "user/recent", "pushed_at": "2025-10-15T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            patch("builtins.input", side_effect=["A", "2", "60", "Y"]),
+        ):
+            select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+                days=7,
+            )
+
+        captured = capsys.readouterr()
+        # Should show "Rechecking..." and new stats
+        assert "Rechecking..." in captured.out
+        assert "60 days" in captured.out
+
+    def test_adjust_timeframe_invalid_number_returns_to_menu(self, tmp_path):
+        """Test invalid days input returns to menu."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, zero repos -> "2" adjust, "abc" invalid, then Q to quit
+            patch("builtins.input", side_effect=["A", "2", "abc", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_adjust_timeframe_negative_number_returns_to_menu(self, tmp_path):
+        """Test negative days input returns to menu."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, zero repos -> "2" adjust, "-5" negative, then Q to quit
+            patch("builtins.input", side_effect=["A", "2", "-5", "Q"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_adjust_timeframe_eof_on_days_input_exits(self, tmp_path):
+        """Test EOF on days input exits completely."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        old_repos = [
+            {"full_name": "user/old1", "pushed_at": "2020-01-01T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = old_repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option A, zero repos -> "2" adjust, EOF on days input
+            patch("builtins.input", side_effect=["A", "2", EOFError()]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+            )
+
+        assert result == []
+
+    def test_adjust_timeframe_option_l(self, tmp_path):
+        """Test adjust timeframe works for Option L (select from list)."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        repos = [
+            {"full_name": "user/old", "pushed_at": "2020-01-01T10:00:00Z"},
+            {"full_name": "user/recent", "pushed_at": "2025-10-15T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_user_repos.return_value = repos
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option L, zero repos in 7 days -> "2" adjust, "60" days, "Y" confirm, "all" select
+            patch("builtins.input", side_effect=["L", "2", "60", "Y", "all"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+                days=7,
+            )
+
+        assert len(result) == 1
+        assert "user/recent" in result
+
+    def test_adjust_timeframe_option_o(self, tmp_path):
+        """Test adjust timeframe works for Option O (organization)."""
+        import os
+
+        from src.github_analyzer.api.client import GitHubClient
+
+        repos_file = tmp_path / "repos.txt"
+        github_env = {"GITHUB_TOKEN": "ghp_test_token_12345678901234567890"}
+
+        org_repos = [
+            {"full_name": "org/old", "pushed_at": "2020-01-01T10:00:00Z"},
+            {"full_name": "org/recent", "pushed_at": "2025-10-15T10:00:00Z"},
+        ]
+
+        mock_client = Mock(spec=GitHubClient)
+        mock_client.list_org_repos.return_value = org_repos
+        # Search API returns empty results (0 active in 7 days)
+        mock_client.search_active_org_repos.return_value = {
+            "total_count": 0,
+            "incomplete_results": False,
+            "items": [],
+        }
+        mock_client.close = Mock()
+
+        with (
+            patch.object(main_module, "GitHubClient", return_value=mock_client),
+            patch.dict(os.environ, github_env, clear=True),
+            # Option O, org name, zero active -> "2" adjust, "60" days, "Y" confirm, "all" select
+            patch("builtins.input", side_effect=["O", "myorg", "2", "60", "Y", "all"]),
+        ):
+            result = select_github_repos(
+                str(repos_file),
+                github_token=github_env["GITHUB_TOKEN"],
+                interactive=True,
+                days=7,
+            )
+
+        assert len(result) == 1
+        assert "org/recent" in result
 
 
 class TestSearchAPIRateLimitFallback:
