@@ -778,13 +778,18 @@ class TestGitHubPersonalReposSelection:
         repos_file = tmp_path / "repos.txt"
         assert not repos_file.exists()
 
+        # Add pushed_at to mock repos for Feature 005 activity filtering
+        for repo in mock_repos:
+            repo["pushed_at"] = "2025-11-28T10:00:00Z"
+
         with mock.patch.object(main_module, "GitHubClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.list_user_repos.return_value = mock_repos
             mock_client.close = mock.Mock()
 
             with mock.patch.dict(os.environ, github_env, clear=True):
-                with mock.patch("builtins.input", return_value="A"):
+                # Feature 005: "A" selects option, "Y" confirms active repos
+                with mock.patch("builtins.input", side_effect=["A", "Y"]):
                     result = select_github_repos(
                         str(repos_file),
                         github_token=github_env["GITHUB_TOKEN"],
@@ -808,14 +813,18 @@ class TestGitHubPersonalReposSelection:
         repos_file = tmp_path / "repos.txt"
         assert not repos_file.exists()
 
+        # Add pushed_at to mock repos for Feature 005 activity filtering
+        for repo in mock_repos:
+            repo["pushed_at"] = "2025-11-28T10:00:00Z"
+
         with mock.patch.object(main_module, "GitHubClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.list_user_repos.return_value = mock_repos
             mock_client.close = mock.Mock()
 
             with mock.patch.dict(os.environ, github_env, clear=True):
-                # User selects 'L', then '1,3'
-                with mock.patch("builtins.input", side_effect=["L", "1,3"]):
+                # Feature 005: "L" selects option, "Y" confirms, then '1,3' selection
+                with mock.patch("builtins.input", side_effect=["L", "Y", "1,3"]):
                     with mock.patch("builtins.print") as mock_print:
                         result = select_github_repos(
                             str(repos_file),
@@ -844,13 +853,18 @@ class TestGitHubPersonalReposSelection:
         repos_file = tmp_path / "repos.txt"
         assert not repos_file.exists()
 
+        # Add pushed_at to mock repos for Feature 005 activity filtering
+        for repo in mock_repos:
+            repo["pushed_at"] = "2025-11-28T10:00:00Z"
+
         with mock.patch.object(main_module, "GitHubClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.list_user_repos.return_value = mock_repos
             mock_client.close = mock.Mock()
 
             with mock.patch.dict(os.environ, github_env, clear=True):
-                with mock.patch("builtins.input", side_effect=["L", "1-3"]):
+                # Feature 005: "L" selects option, "Y" confirms, then "1-3" range selection
+                with mock.patch("builtins.input", side_effect=["L", "Y", "1-3"]):
                     result = select_github_repos(
                         str(repos_file),
                         github_token=github_env["GITHUB_TOKEN"],
@@ -871,13 +885,18 @@ class TestGitHubPersonalReposSelection:
         repos_file = tmp_path / "repos.txt"
         assert not repos_file.exists()
 
+        # Add pushed_at to mock repos for Feature 005 activity filtering
+        for repo in mock_repos:
+            repo["pushed_at"] = "2025-11-28T10:00:00Z"
+
         with mock.patch.object(main_module, "GitHubClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.list_user_repos.return_value = mock_repos
             mock_client.close = mock.Mock()
 
             with mock.patch.dict(os.environ, github_env, clear=True):
-                with mock.patch("builtins.input", side_effect=["L", "all"]):
+                # Feature 005: "L" selects option, "Y" confirms, then "all" selection
+                with mock.patch("builtins.input", side_effect=["L", "Y", "all"]):
                     result = select_github_repos(
                         str(repos_file),
                         github_token=github_env["GITHUB_TOKEN"],
@@ -917,21 +936,31 @@ class TestGitHubOrgReposSelection:
         repos_file = tmp_path / "repos.txt"
         assert not repos_file.exists()
 
+        # Add pushed_at to mock repos for Feature 005 activity filtering
+        for repo in mock_org_repos:
+            repo["pushed_at"] = "2025-11-28T10:00:00Z"
+
         with mock.patch.object(main_module, "GitHubClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.list_org_repos.return_value = mock_org_repos
+            # Feature 005: Search API for org repos
+            mock_client.search_active_org_repos.return_value = {
+                "total_count": len(mock_org_repos),
+                "incomplete_results": False,
+                "items": mock_org_repos,
+            }
             mock_client.close = mock.Mock()
 
             with mock.patch.dict(os.environ, github_env, clear=True):
-                # User selects 'O', enters org name, then 'all'
-                with mock.patch("builtins.input", side_effect=["O", "myorg", "all"]):
+                # Feature 005: "O" selects option, enters org name, "Y" confirms, then 'all'
+                with mock.patch("builtins.input", side_effect=["O", "myorg", "Y", "all"]):
                     result = select_github_repos(
                         str(repos_file),
                         github_token=github_env["GITHUB_TOKEN"],
                         interactive=True,
                     )
 
-        # Should have called list_org_repos with the org name
+        # Should have called list_org_repos with the org name (for total count)
         mock_client.list_org_repos.assert_called_with("myorg")
         assert len(result) == 2
         assert "myorg/project1" in result
