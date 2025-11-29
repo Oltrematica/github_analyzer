@@ -572,7 +572,8 @@ class JiraClient:
                 "GET",
                 f"/rest/api/{self.api_version}/issue/{issue_key}/changelog",
             )
-            return response.get("values", [])
+            values: list[dict[str, Any]] = response.get("values", [])
+            return values
 
         except (JiraPermissionError, JiraNotFoundError):
             # Graceful degradation per spec assumptions:
